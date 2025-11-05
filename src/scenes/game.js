@@ -32,11 +32,39 @@ export default class Game extends Phaser.Scene {
     this.center_width = this.width / 2;
     this.center_height = this.height / 2;
     this.cameras.main.setBackgroundColor(0x62a2bf); //(0x00b140)//(0x62a2bf)
-    this.add.tileSprite(0, 1000, 1024 * 10, 512, "landscape").setOrigin(0.5);
+    
+    // Create reasonable-sized world for top-down MMORPG view
+    const worldWidth = 1400;
+    const worldHeight = 1200;
+    
+    // Use a single scaled sprite instead of tiling
+    const landscapeBackground = this.add.sprite(
+      worldWidth / 2, 
+      worldHeight / 2, 
+      "landscape"
+    );
+    
+    // Scale the background to cover the entire world
+    landscapeBackground.setDisplaySize(worldWidth, worldHeight);
+    
+    // Send background to the back so other elements appear on top
+    landscapeBackground.setDepth(-1000);
+    
+    // Temporarily disable tilemap for testing
     this.createMap();
+    
+    // Create basic groups for game objects
+    this.batGroup = this.add.group();
+    this.zombieGroup = this.add.group();
+    this.foesGroup = this.add.group();
+    this.turnGroup = this.add.group();
+    this.exitGroup = this.add.group();
+    this.platformGroup = this.add.group();
+    this.lunchBoxGroup = this.add.group();
+    this.bricks = this.add.group();
 
-    this.cameras.main.setBounds(0, 0, 20920 * 2, 20080 * 2);
-    this.physics.world.setBounds(0, 0, 20920 * 2, 20080 * 2);
+    this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
+    this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
     this.addPlayer();
 
     // MMORPG-style camera: follow player smoothly from slightly above
@@ -136,12 +164,12 @@ export default class Game extends Phaser.Scene {
         this.lunchBoxGroup.add(new LunchBox(this, object.x, object.y));
       }
 
-      if (object.name === "text") {
-        this.add
-          .bitmapText(object.x, object.y, "pixelFont", object.text.text, 30)
-          .setDropShadow(2, 4, 0x222222, 0.9)
-          .setOrigin(0);
-      }
+      // if (object.name === "text") {
+      //   this.add
+      //     .bitmapText(object.x, object.y, "pixelFont", object.text.text, 30)
+      //     .setDropShadow(2, 4, 0x222222, 0.9)
+      //     .setOrigin(0);
+      // }
 
       if (object.name === "exit") {
         this.exitGroup.add(
@@ -232,30 +260,31 @@ export default class Game extends Phaser.Scene {
     this.elements = this.add.group();
     this.coins = this.add.group();
 
-    const playerPosition = this.objectsLayer.objects.find(
-      (object) => object.name === "player"
-    );
-    this.player = new Player(this, playerPosition.x, playerPosition.y, 0);
+    // Set player starting position in the center of the world for top-down view
+    const startX = this.cameras.main.width / 2;
+    const startY = this.cameras.main.height / 2;
+    this.player = new Player(this, startX, startY, 10);
 
-    this.physics.add.collider(
-      this.player,
-      this.platform,
-      this.hitFloor,
-      () => {
-        return true;
-      },
-      this
-    );
+    // Temporarily disable platform colliders for testing
+    // this.physics.add.collider(
+    //   this.player,
+    //   this.platform,
+    //   this.hitFloor,
+    //   () => {
+    //     return true;
+    //   },
+    //   this
+    // );
 
-    this.physics.add.collider(
-      this.player,
-      this.platformGroup,
-      this.hitFloor,
-      () => {
-        return true;
-      },
-      this
-    );
+    // this.physics.add.collider(
+    //   this.player,
+    //   this.platformGroup,
+    //   this.hitFloor,
+    //   () => {
+    //     return true;
+    //   },
+    //   this
+    // );
 
     this.physics.add.collider(
       this.player,
