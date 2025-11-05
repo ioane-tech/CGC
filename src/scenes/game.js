@@ -196,7 +196,7 @@ export default class Game extends Phaser.Scene {
      }
 
     // Responsive door positioning (centered vertically with proportional sizing)
-    const doorHeight = roomHeight * 0.16; // 16% of room height
+    const doorHeight = roomHeight * 0.1; // 16% of room height
     const doorY = (roomHeight - doorHeight) / 2; // Center the door vertically
     
     // Right wall top part
@@ -208,7 +208,7 @@ export default class Game extends Phaser.Scene {
     this.wallGroup.add(rightWallBottom);
 
     // Door trigger area (positioned at the door opening)
-    const door = new Door(this, roomWidth - wallThickness / 2, doorY + doorHeight / 2, wallThickness, doorHeight, 1);
+    const door = new Door(this, roomWidth - (wallThickness / 2) - 100, doorY + (doorHeight / 2) + 160, wallThickness, doorHeight, 1);
     this.doorGroup.add(door);
 
     const debugMode = true; // Turned on to see the angled wall
