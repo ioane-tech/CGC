@@ -17,9 +17,10 @@ export default class Splash extends Phaser.Scene {
     this.selectedPlayerIndex = 0;
     this.players = [
       { key: "vanoSprite", name: "VANO", unlocked: true, frames: { width: 64, height: 127 }, unlockCondition: "default" },
-      { key: "walt", name: "WALT", unlocked: false, frames: { width: 64, height: 64 }, unlockCondition: "Complete 3 levels" },
-      { key: "zombie", name: "ZOMBIE", unlocked: false, frames: { width: 64, height: 64 }, unlockCondition: "Collect 50 coins" },
-      { key: "penguin", name: "PENGUIN", unlocked: false, frames: { width: 64, height: 64 }, unlockCondition: "Find secret area" }
+      { key: "walt", name: "Demchex", unlocked: false, frames: { width: 64, height: 64 }, unlockCondition: "Complete 3 levels" },
+      { key: "zombie", name: "Machex", unlocked: false, frames: { width: 64, height: 64 }, unlockCondition: "Collect 50 coins" },
+      { key: "penguin", name: "IO", unlocked: false, frames: { width: 64, height: 64 }, unlockCondition: "Find secret area" },
+      { key: "penguin", name: "Willen", unlocked: false, frames: { width: 64, height: 64 }, unlockCondition: "Find secret area" }
     ];
 
     // Check for unlocked players from registry
