@@ -6,6 +6,8 @@ import Turn from "../gameobjects/turn";
 import Coin from "../gameobjects/coin";
 import LunchBox from "../gameobjects/lunchbox";
 import Platform from "../gameobjects/platform";
+import Wall from "../gameobjects/wall";
+import Door from "../gameobjects/door";
 import Phaser from "phaser";
 
 export default class Game extends Phaser.Scene {
@@ -37,7 +39,7 @@ export default class Game extends Phaser.Scene {
     const worldWidth = 1400;
     const worldHeight = 1200;
     
-    // Use a single scaled sprite instead of tiling
+    // Add landscape.png as background
     const landscapeBackground = this.add.sprite(
       worldWidth / 2, 
       worldHeight / 2, 
@@ -50,8 +52,11 @@ export default class Game extends Phaser.Scene {
     // Send background to the back so other elements appear on top
     landscapeBackground.setDepth(-1000);
     
+    // Optionally add clean room overlay (comment out if you want pure landscape)
+    // this.createCleanRoomBackground(worldWidth, worldHeight);
+    
     // Temporarily disable tilemap for testing
-    this.createMap();
+    // this.createMap();
     
     // Create basic groups for game objects
     this.batGroup = this.add.group();
@@ -62,6 +67,9 @@ export default class Game extends Phaser.Scene {
     this.platformGroup = this.add.group();
     this.lunchBoxGroup = this.add.group();
     this.bricks = this.add.group();
+    
+    // Create walls and doors for the landscape room
+    this.createWallsAndDoors();
 
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
@@ -96,6 +104,69 @@ export default class Game extends Phaser.Scene {
       frameRate: 8,
     });
     this.scoreCoinsLogo.play({ key: "coinscore", repeat: -1 });
+  }
+  /*
+    This function creates walls and doors for the landscape room based on the landscape.png layout.
+    It creates invisible collision rectangles that match the room boundaries and a door trigger area.
+    */
+  createWallsAndDoors() {
+    // Create wall and door groups
+    this.wallGroup = this.add.group();
+    this.doorGroup = this.add.group();
+
+    // Room dimensions: 1400x1200 (matching landscape.png)
+    const roomWidth = 1400;
+    const roomHeight = 1200;
+    const wallThickness = 64;
+
+    // Top wall (full width)
+    const topWall = new Wall(this, roomWidth / 2, wallThickness * 6.1, roomWidth, wallThickness);
+    this.wallGroup.add(topWall);
+
+    // Bottom wall (full width)
+    const bottomWall = new Wall(this, roomWidth / 2, roomHeight - wallThickness / 2, roomWidth, wallThickness);
+    this.wallGroup.add(bottomWall);
+
+    // Main vertical left wall (upper portion)
+    const leftWallMain = new Wall(this, wallThickness / 2, roomHeight / 2 - 100, wallThickness, roomHeight - 400);
+    this.wallGroup.add(leftWallMain);
+    
+    const angleSegments = 200; // Number of segments to create smooth angle
+    const angleStartY = roomHeight - wallThickness; // Start from bottom
+    const angleLength = 800; // Length of angled section
+    
+    for (let i = 0; i < angleSegments; i++) {
+      const progress = i / angleSegments;
+      const angle = -Math.PI / 3; // -60 degrees (negative for upward angle)
+      
+      const segmentX = wallThickness - 140 + (progress * angleLength * Math.cos(angle));
+      const segmentY = angleStartY + (progress * angleLength * Math.sin(angle));
+      
+      // Create small wall segment
+      const angleWall = new Wall(this, segmentX, segmentY, wallThickness / 2, wallThickness / 2);
+      this.wallGroup.add(angleWall);
+    }
+
+    const doorY = 500; // Door position from landscape.png
+    const doorHeight = 200; // Door opening height
+    
+    // Right wall top part
+    const rightWallTop = new Wall(this, roomWidth - wallThickness / 2, doorY / 2, wallThickness, doorY);
+    this.wallGroup.add(rightWallTop);
+
+    // Right wall bottom part
+    const rightWallBottom = new Wall(this, roomWidth - wallThickness / 2, doorY + doorHeight + (roomHeight - doorY - doorHeight) / 2, wallThickness, roomHeight - doorY - doorHeight);
+    this.wallGroup.add(rightWallBottom);
+
+    // Door trigger area (positioned at the door opening)
+    const door = new Door(this, roomWidth - wallThickness / 2, doorY + doorHeight / 2, wallThickness, doorHeight, 1);
+    this.doorGroup.add(door);
+
+    const debugMode = true; // Turned on to see the angled wall
+    if (debugMode) {
+      this.wallGroup.children.entries.forEach(wall => wall.toggleDebugVisibility());
+      this.doorGroup.children.entries.forEach(door => door.toggleDebugVisibility());
+    }
   }
 
   /*
@@ -254,15 +325,28 @@ export default class Game extends Phaser.Scene {
   hitFloor() {}
 
   /*
+    This function is called when the player enters a door. It activates the door and transitions to the target scene.
+    */
+  enterDoor(player, door) {
+    if (door.activate()) {
+      this.playAudio("stage");
+      this.time.delayedCall(500, () => {
+        if (this.theme) this.theme.stop();
+        this.scene.start("transition", { name: "STAGE", number: door.targetScene });
+      }, null, this);
+    }
+  }
+
+  /*
     We add the player to the game and we add the colliders between the player and the rest of the elements. The starting position of the player is defined on the tilemap.
     */
   addPlayer() {
     this.elements = this.add.group();
     this.coins = this.add.group();
 
-    // Set player starting position in the center of the world for top-down view
-    const startX = this.cameras.main.width / 2;
-    const startY = this.cameras.main.height / 2;
+    // Set player starting position 200px from bottom of the room
+    const startX = 700; // Center of the 1400px wide room
+    const startY = 1200 - 200; // 200px from bottom of 1200px high room
     this.player = new Player(this, startX, startY, 10);
 
     // Temporarily disable platform colliders for testing
@@ -390,6 +474,18 @@ export default class Game extends Phaser.Scene {
       },
       this
     );
+
+    // Add wall collisions
+    if (this.wallGroup) {
+      this.physics.add.collider(this.player, this.wallGroup);
+      this.physics.add.collider(this.batGroup, this.wallGroup, this.turnFoe, null, this);
+      this.physics.add.collider(this.zombieGroup, this.wallGroup, this.turnFoe, null, this);
+    }
+
+    // Add door interactions
+    if (this.doorGroup) {
+      this.physics.add.overlap(this.player, this.doorGroup, this.enterDoor, null, this);
+    }
   }
 
   /*
