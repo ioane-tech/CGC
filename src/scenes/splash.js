@@ -12,17 +12,60 @@ export default class Splash extends Phaser.Scene {
     this.center_height = this.height / 2;
 
     this.cameras.main.setBackgroundColor(0x000053);
-    this.time.delayedCall(1000, () => this.showInstructions(), null, this);
+    
+    // Player selection state
+    this.selectedPlayerIndex = 0;
+    this.players = [
+      { key: "vanoSprite", name: "VANO", unlocked: true, frames: { width: 64, height: 127 }, unlockCondition: "default" },
+      { key: "walt", name: "WALT", unlocked: false, frames: { width: 64, height: 64 }, unlockCondition: "Complete 3 levels" },
+      { key: "zombie", name: "ZOMBIE", unlocked: false, frames: { width: 64, height: 64 }, unlockCondition: "Collect 50 coins" },
+      { key: "penguin", name: "PENGUIN", unlocked: false, frames: { width: 64, height: 64 }, unlockCondition: "Find secret area" }
+    ];
 
+    // Check for unlocked players from registry
+    this.checkUnlockedPlayers();
+
+    // Input handling
+    this.cursors = this.input.keyboard.createCursorKeys();
     this.input.keyboard.on("keydown-SPACE", () => this.startGame(), this);
     this.input.keyboard.on("keydown-ENTER", () => this.startGame(), this);
+    
     this.playMusic();
     this.showTitle();
+    this.time.delayedCall(1000, () => this.showInstructions(), null, this);
+    this.time.delayedCall(1500, () => this.showPlayerSelection(), null, this);
     this.playAudioRandomly("writing-with-pencil");
+  }
+
+  update() {
+    // Handle player selection navigation
+    if (this.playerSelectionShown) {
+      if (Phaser.Input.Keyboard.JustDown(this.cursors.left)) {
+        this.changePlayer(-1);
+      } else if (Phaser.Input.Keyboard.JustDown(this.cursors.right)) {
+        this.changePlayer(1);
+      }
+    }
+  }
+
+  changePlayer(direction) {
+    const newIndex = (this.selectedPlayerIndex + direction + this.players.length) % this.players.length;
+    
+    if (this.players[newIndex].unlocked) {
+      this.selectedPlayerIndex = newIndex;
+      this.updatePlayerSelection();
+      this.playAudioRandomly("writing-with-pencil");
+    } else {
+      // Show unlock condition for locked player
+      this.showUnlockCondition(newIndex);
+      this.playAudioRandomly("stone_fail");
+    }
   }
 
   startGame() {
     if (this.theme) this.theme.stop();
+    // Pass selected player to the game
+    this.registry.set("selectedPlayer", this.players[this.selectedPlayerIndex].key);
     this.scene.start("transition", {
       next: "game",
       name: "STAGE",
@@ -124,33 +167,175 @@ export default class Splash extends Phaser.Scene {
     */
   showInstructions() {
     this.add
-      .bitmapText(this.center_width, 450, "pixelFont", "WASD/Arrows: move", 30)
+      .bitmapText(this.center_width, 450, "pixelFont", "WASD/Arrows: move", 20)
       .setOrigin(0.5);
     this.add
-      .bitmapText(this.center_width, 500, "pixelFont", "SPACE: jump", 30)
+      .bitmapText(this.center_width, 480, "pixelFont", "SPACE: jump", 20)
       .setOrigin(0.5);
+  }
+
+  /*
+    Shows the player selection interface
+    */
+  showPlayerSelection() {
+    this.playerSelectionShown = true;
+    
+    // Title for player selection
     this.add
-      .sprite(this.center_width - 120, 620, "pello")
+      .bitmapText(this.center_width, 520, "pixelFont", "SELECT PLAYER", 15)
       .setOrigin(0.5)
-      .setScale(0.3);
-    this.add
-      .bitmapText(this.center_width + 40, 620, "pixelFont", "By VINRE", 15)
-      .setOrigin(0.5);
-    this.space = this.add
-      .bitmapText(
-        this.center_width,
-        670,
-        "pixelFont",
-        "Press SPACE to start",
-        30
-      )
-      .setOrigin(0.5);
-    this.tweens.add({
-      targets: this.space,
-      duration: 300,
-      alpha: { from: 0, to: 1 },
-      repeat: -1,
-      yoyo: true,
+      .setTint(0xffbf00);
+
+
+    // Create player selection containers
+    this.playerSprites = [];
+    this.playerNames = [];
+    this.playerFrames = [];
+    this.lockIcons = [];
+
+    const startX = this.center_width - (this.players.length - 1) * 80;
+    
+    this.players.forEach((player, index) => {
+      const x = startX + index * 160;
+      const y = 650;
+
+      // Create background frame for each player
+      const frame = this.add.graphics();
+      frame.lineStyle(3, 0x444444);
+      frame.strokeRoundedRect(x - 50, y - 40, 100, 80, 10);
+      this.playerFrames.push(frame);
+
+      // Create player sprite
+      let sprite;
+      if (player.unlocked) {
+        sprite = this.add.sprite(x, y, player.key, 0);
+        sprite.setScale(player.key === "vanoSprite" ? 0.6 : 1);
+        
+        // Add walking animation for unlocked players
+        this.tweens.add({
+          targets: sprite,
+          duration: 800,
+          y: y - 5,
+          repeat: -1,
+          yoyo: true,
+          ease: 'Sine.easeInOut'
+        });
+      } else {
+        // Show silhouette for locked players
+        sprite = this.add.sprite(x, y, player.key, 0);
+        sprite.setScale(player.key === "vanoSprite" ? 0.6 : 1);
+        sprite.setTint(0x333333);
+        sprite.setAlpha(0.5);
+
+        // Add lock icon
+        const lock = this.add.graphics();
+        lock.fillStyle(0xff4444);
+        lock.fillRoundedRect(x - 15, y - 25, 30, 20, 5);
+        lock.lineStyle(3, 0xff4444);
+        lock.strokeCircle(x, y - 15, 8);
+        lock.fillStyle(0x000000);
+        lock.fillCircle(x, y - 12, 3);
+        this.lockIcons.push(lock);
+
+        // Add "LOCKED" text
+        const lockedText = this.add
+          .bitmapText(x, y + 25, "pixelFont", "LOCKED", 12)
+          .setOrigin(0.5)
+          .setTint(0xff4444);
+        this.lockIcons.push(lockedText);
+      }
+      
+      this.playerSprites.push(sprite);
+
+      // Player name
+      const nameColor = player.unlocked ? 0xffffff : 0x666666;
+      const name = this.add
+        .bitmapText(x, y + 50, "pixelFont", player.name, 18)
+        .setOrigin(0.5)
+        .setTint(nameColor);
+      this.playerNames.push(name);
+    });
+
+    this.updatePlayerSelection();
+  }
+
+  /*
+    Updates the visual selection indicator
+    */
+  updatePlayerSelection() {
+    if (!this.playerFrames) return;
+
+    this.playerFrames.forEach((frame, index) => {
+      frame.clear();
+      if (index === this.selectedPlayerIndex && this.players[index].unlocked) {
+        // Highlight selected player with golden frame
+        frame.lineStyle(4, 0xffbf00);
+        frame.strokeRoundedRect(-50, -40, 100, 80, 10);
+        
+        // Add glow effect
+        frame.lineStyle(2, 0xffffff, 0.5);
+        frame.strokeRoundedRect(-52, -42, 104, 84, 12);
+      } else {
+        // Normal frame
+        const color = this.players[index].unlocked ? 0x888888 : 0x444444;
+        frame.lineStyle(3, color);
+        frame.strokeRoundedRect(-50, -40, 100, 80, 10);
+      }
+    });
+
+    // Update player name colors
+    this.playerNames.forEach((name, index) => {
+      if (index === this.selectedPlayerIndex && this.players[index].unlocked) {
+        name.setTint(0xffbf00);
+      } else {
+        name.setTint(this.players[index].unlocked ? 0xffffff : 0x666666);
+      }
+    });
+  }
+
+  /*
+    Check which players should be unlocked based on game progress
+    */
+  checkUnlockedPlayers() {
+    // Get game progress from registry
+    const levelsCompleted = this.registry.get("levelsCompleted") || 0;
+    const coinsCollected = this.registry.get("totalCoins") || 0;
+    const secretFound = this.registry.get("secretFound") || false;
+
+    // Unlock players based on conditions
+    if (levelsCompleted >= 3) {
+      this.players[1].unlocked = true; // Walt
+    }
+    if (coinsCollected >= 50) {
+      this.players[2].unlocked = true; // Zombie
+    }
+    if (secretFound) {
+      this.players[3].unlocked = true; // Penguin
+    }
+
+  }
+
+  /*
+    Show unlock condition when hovering over locked players
+    */
+  showUnlockCondition(playerIndex) {
+    if (this.players[playerIndex].unlocked) return;
+
+    if (this.unlockText) {
+      this.unlockText.destroy();
+    }
+
+    this.unlockText = this.add
+      .bitmapText(this.center_width, 650, "pixelFont", this.players[playerIndex].unlockCondition, 16)
+      .setOrigin(0.5)
+      .setTint(0xff8888);
+
+    // Auto-hide after 3 seconds
+    this.time.delayedCall(3000, () => {
+      if (this.unlockText) {
+        this.unlockText.destroy();
+        this.unlockText = null;
+      }
     });
   }
 }

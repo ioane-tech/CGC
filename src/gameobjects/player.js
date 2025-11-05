@@ -4,8 +4,11 @@ import { JumpSmoke } from "./particle";
 
 class Player extends Phaser.GameObjects.Sprite {
   constructor(scene, x, y, health = 10) {
-    super(scene, x, y, "vanoSprite");
+    // Get selected player from registry, default to vanoSprite
+    const selectedPlayer = scene.registry.get("selectedPlayer") || "vanoSprite";
+    super(scene, x, y, selectedPlayer);
     this.setOrigin(0.5);
+    this.playerSprite = selectedPlayer;
 
     this.scene.add.existing(this);
     this.scene.physics.add.existing(this);
@@ -49,11 +52,14 @@ class Player extends Phaser.GameObjects.Sprite {
     Inits the animations for the player: init, idle, walk, jump, death, etc... and it adds a listener for the `animationcomplete` event.
     */
   init() {
+    // Define animation frames based on player sprite
+    const animConfig = this.getAnimationConfig();
+
     this.scene.anims.create({
       key: "startidle",
-      frames: this.scene.anims.generateFrameNumbers("vanoSprite", {
-        start: 0,
-        end: 0,
+      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
+        start: animConfig.idle.start,
+        end: animConfig.idle.end,
       }),
       frameRate: 10,
       repeat: -1,
@@ -61,9 +67,9 @@ class Player extends Phaser.GameObjects.Sprite {
 
     this.scene.anims.create({
       key: "playeridle",
-      frames: this.scene.anims.generateFrameNumbers("vanoSprite", {
-        start: 0,
-        end: 0,
+      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
+        start: animConfig.idle.start,
+        end: animConfig.idle.end,
       }),
       frameRate: 10,
       repeat: -1,
@@ -71,9 +77,9 @@ class Player extends Phaser.GameObjects.Sprite {
 
     this.scene.anims.create({
       key: "playerwalk",
-      frames: this.scene.anims.generateFrameNumbers("vanoSprite", {
-        start: 0,
-        end: 1,
+      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
+        start: animConfig.walk.start,
+        end: animConfig.walk.end,
       }),
       frameRate: 10,
       repeat: -1,
@@ -81,27 +87,27 @@ class Player extends Phaser.GameObjects.Sprite {
 
     this.scene.anims.create({
       key: "playerjump",
-      frames: this.scene.anims.generateFrameNumbers("walt", {
-        start: 4,
-        end: 4,
+      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
+        start: animConfig.jump.start,
+        end: animConfig.jump.end,
       }),
       frameRate: 1,
     });
 
     this.scene.anims.create({
       key: "playerhammer",
-      frames: this.scene.anims.generateFrameNumbers("walt", {
-        start: 7,
-        end: 8,
+      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
+        start: animConfig.hammer.start,
+        end: animConfig.hammer.end,
       }),
       frameRate: 10,
     });
 
     this.scene.anims.create({
       key: "playerbuild",
-      frames: this.scene.anims.generateFrameNumbers("walt", {
-        start: 9,
-        end: 10,
+      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
+        start: animConfig.build.start,
+        end: animConfig.build.end,
       }),
       frameRate: 10,
       repeat: 2,
@@ -109,9 +115,9 @@ class Player extends Phaser.GameObjects.Sprite {
 
     this.scene.anims.create({
       key: "playerdead",
-      frames: this.scene.anims.generateFrameNumbers("walt", {
-        start: 11,
-        end: 16,
+      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
+        start: animConfig.death.start,
+        end: animConfig.death.end,
       }),
       frameRate: 5,
     });
@@ -119,6 +125,59 @@ class Player extends Phaser.GameObjects.Sprite {
     this.anims.play("startidle", true);
 
     this.on("animationcomplete", this.animationComplete, this);
+  }
+
+  /*
+    Returns animation frame configuration for different player sprites
+    */
+  getAnimationConfig() {
+    switch (this.playerSprite) {
+      case "vanoSprite":
+        return {
+          idle: { start: 0, end: 0 },
+          walk: { start: 0, end: 1 },
+          jump: { start: 0, end: 0 },
+          hammer: { start: 0, end: 1 },
+          build: { start: 0, end: 1 },
+          death: { start: 0, end: 0 }
+        };
+      case "walt":
+        return {
+          idle: { start: 0, end: 0 },
+          walk: { start: 1, end: 3 },
+          jump: { start: 4, end: 4 },
+          hammer: { start: 7, end: 8 },
+          build: { start: 9, end: 10 },
+          death: { start: 11, end: 16 }
+        };
+      case "zombie":
+        return {
+          idle: { start: 0, end: 0 },
+          walk: { start: 0, end: 2 },
+          jump: { start: 0, end: 0 },
+          hammer: { start: 3, end: 4 },
+          build: { start: 3, end: 4 },
+          death: { start: 5, end: 5 }
+        };
+      case "penguin":
+        return {
+          idle: { start: 0, end: 1 },
+          walk: { start: 2, end: 5 },
+          jump: { start: 6, end: 6 },
+          hammer: { start: 2, end: 3 },
+          build: { start: 4, end: 5 },
+          death: { start: 6, end: 6 }
+        };
+      default:
+        return {
+          idle: { start: 0, end: 0 },
+          walk: { start: 0, end: 1 },
+          jump: { start: 0, end: 0 },
+          hammer: { start: 0, end: 1 },
+          build: { start: 0, end: 1 },
+          death: { start: 0, end: 0 }
+        };
+    }
   }
 
   /*
