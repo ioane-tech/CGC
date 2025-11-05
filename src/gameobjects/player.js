@@ -9,15 +9,20 @@ class Player extends Phaser.GameObjects.Sprite {
 
     this.scene.add.existing(this);
     this.scene.physics.add.existing(this);
+    
+    // New control scheme - Arrow keys only
     this.cursor = this.scene.input.keyboard.createCursorKeys();
     this.spaceBar = this.scene.input.keyboard.addKey(
       Phaser.Input.Keyboard.KeyCodes.SPACE
     );
-    this.down = this.scene.input.keyboard.addKey(
-      Phaser.Input.Keyboard.KeyCodes.DOWN
-    );
+    
+    // Action keys Z, X, C
+    this.zKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
+    this.xKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
+    this.cKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
+    
     this.right = true;
-    this.body.setGravityY(100);
+    this.body.setGravityY(0); // Remove gravity for top-down movement
     this.body.setSize(48, 60);
     this.init();
     this.jumping = false;
@@ -29,13 +34,9 @@ class Player extends Phaser.GameObjects.Sprite {
     this.invincible = false;
 
     this.health = health;
-
     this.dead = false;
 
-    this.W = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.W);
-    this.A = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
-    this.S = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S);
-    this.D = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
+    // Remove old WASD keys - we're using arrows only now
   }
 
   /*
@@ -115,67 +116,75 @@ class Player extends Phaser.GameObjects.Sprite {
   }
 
   /*
-    In the update function, we set the player movement according to the controls. We check if the player is jumping, falling, walking, etc...
+    Top-down 2D movement system for MMORPG-style gameplay.
+    Arrow keys control movement in all four directions.
     */
   update() {
     if (this.dead) return;
-    if (this.jumping) {
-      if (this.body.velocity.y >= 0) {
-        this.body.setGravityY(700);
-        this.falling = true;
-      }
-    }
 
-    if (
-      (Phaser.Input.Keyboard.JustDown(this.cursor.up) ||
-        Phaser.Input.Keyboard.JustDown(this.W)) &&
-      this.body.blocked.down
-    ) {
-      this.building = false;
-      this.body.setVelocityY(this.jumpVelocity);
-      this.body.setGravityY(400);
-      this.anims.play("playerjump", true);
-      this.scene.playAudio("jump");
-      this.jumping = true;
-      this.jumpSmoke();
-    } else if (this.cursor.right.isDown || this.D.isDown) {
-      this.building = false;
-      if (this.body.blocked.down) {
-        this.anims.play("playerwalk", true);
-      }
-      this.right = true;
-      this.flipX = this.body.velocity.x < 0;
-      this.body.setVelocityX(this.walkVelocity);
-    } else if (this.cursor.left.isDown || this.A.isDown) {
-      this.building = false;
-      if (this.body.blocked.down) {
-        this.anims.play("playerwalk", true);
-      }
+    let velocityX = 0;
+    let velocityY = 0;
+    let isMoving = false;
+
+    // Four-directional movement
+    if (this.cursor.left.isDown) {
+      velocityX = -this.walkVelocity;
       this.right = false;
       this.flipX = true;
-      this.body.setVelocityX(-this.walkVelocity);
-    } else {
-      if (this.body.blocked.down) {
-        if (this.jumping) {
-          this.scene.playAudio("land");
-          this.landSmoke();
-        }
-        this.jumping = false;
-        this.falling = false;
-
-        if (!this.building) this.anims.play("playeridle", true);
-      }
-
-      this.body.setVelocityX(0);
+      isMoving = true;
+    }
+    if (this.cursor.right.isDown) {
+      velocityX = this.walkVelocity;
+      this.right = true;
+      this.flipX = false;
+      isMoving = true;
+    }
+    if (this.cursor.up.isDown) {
+      velocityY = -this.walkVelocity;
+      isMoving = true;
+    }
+    if (this.cursor.down.isDown) {
+      velocityY = this.walkVelocity;
+      isMoving = true;
     }
 
-    if (Phaser.Input.Keyboard.JustDown(this.spaceBar)) this.hammerBlow();
+    // Normalize diagonal movement (so moving diagonally isn't faster)
+    if (velocityX !== 0 && velocityY !== 0) {
+      const normalizedSpeed = this.walkVelocity * 0.707; // sqrt(2)/2 ≈ 0.707
+      velocityX = velocityX > 0 ? normalizedSpeed : -normalizedSpeed;
+      velocityY = velocityY > 0 ? normalizedSpeed : -normalizedSpeed;
+    }
 
-    if (
-      Phaser.Input.Keyboard.JustDown(this.cursor.down) ||
-      Phaser.Input.Keyboard.JustDown(this.S)
-    )
-      this.buildBlock();
+    // Apply movement
+    this.body.setVelocityX(velocityX);
+    this.body.setVelocityY(velocityY);
+
+    // Handle animations
+    if (isMoving && !this.building) {
+      this.anims.play("playerwalk", true);
+    } else if (!this.building) {
+      this.anims.play("playeridle", true);
+    }
+
+    // Action keys
+    if (Phaser.Input.Keyboard.JustDown(this.spaceBar)) {
+      // Space can be used for special action or dash
+      console.log("Space pressed - reserved for special action");
+    }
+    
+    if (Phaser.Input.Keyboard.JustDown(this.zKey)) {
+      this.hammerBlow(); // Z key for hammer blow
+    }
+    
+    if (Phaser.Input.Keyboard.JustDown(this.xKey)) {
+      this.buildBlock(); // X key for building blocks
+    }
+    
+    // C key reserved for future action
+    if (Phaser.Input.Keyboard.JustDown(this.cKey)) {
+      // Reserved for future action you'll provide
+      console.log("C key pressed - action reserved for future implementation");
+    }
   }
 
   /*

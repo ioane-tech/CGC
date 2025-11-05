@@ -39,7 +39,9 @@ export default class Game extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, 20920 * 2, 20080 * 2);
     this.addPlayer();
 
-    this.cameras.main.startFollow(this.player, true, 0.05, 0.05, 0, 240);
+    // MMORPG-style camera: follow player smoothly from slightly above
+    this.cameras.main.startFollow(this.player, true, 0.08, 0.08, 0, -100);
+    this.cameras.main.setZoom(1.2); // Zoom in slightly for better view
     this.physics.world.enable([this.player]);
     this.addScore();
     this.loadAudios();

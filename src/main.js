@@ -17,8 +17,8 @@ const config = {
   physics: {
     default: "arcade",
     arcade: {
-      gravity: { y: 300 },
-      debug: true,
+      gravity: { y: 0 }, // No gravity for top-down movement
+      debug: false, // Turn off debug for cleaner view
     },
   },
   scene: [Bootloader, Splash, Transition, Game, Outro],
