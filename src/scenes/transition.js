@@ -23,7 +23,11 @@ export default class Transition extends Phaser.Scene {
 
     this.addScore();
 
-    this.add.sprite(this.center_width, this.center_height - 170, "walt");
+    this.add.sprite(
+      this.center_width + 10,
+      this.center_height - 200,
+      "vanoSprite"
+    );
     this.add
       .bitmapText(
         this.center_width,

@@ -4,23 +4,29 @@ import { JumpSmoke } from "./particle";
 
 class Player extends Phaser.GameObjects.Sprite {
   constructor(scene, x, y, health = 10) {
-    super(scene, x, y, "walt");
+    super(scene, x, y, "vanoSprite");
     this.setOrigin(0.5);
 
     this.scene.add.existing(this);
     this.scene.physics.add.existing(this);
-    
+
     // New control scheme - Arrow keys only
     this.cursor = this.scene.input.keyboard.createCursorKeys();
     this.spaceBar = this.scene.input.keyboard.addKey(
       Phaser.Input.Keyboard.KeyCodes.SPACE
     );
-    
+
     // Action keys Z, X, C
-    this.zKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
-    this.xKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
-    this.cKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
-    
+    this.zKey = this.scene.input.keyboard.addKey(
+      Phaser.Input.Keyboard.KeyCodes.Z
+    );
+    this.xKey = this.scene.input.keyboard.addKey(
+      Phaser.Input.Keyboard.KeyCodes.X
+    );
+    this.cKey = this.scene.input.keyboard.addKey(
+      Phaser.Input.Keyboard.KeyCodes.C
+    );
+
     this.right = true;
     this.body.setGravityY(0); // Remove gravity for top-down movement
     this.body.setSize(48, 60);
@@ -45,29 +51,29 @@ class Player extends Phaser.GameObjects.Sprite {
   init() {
     this.scene.anims.create({
       key: "startidle",
-      frames: this.scene.anims.generateFrameNumbers("walt", {
+      frames: this.scene.anims.generateFrameNumbers("vanoSprite", {
         start: 0,
-        end: 1,
+        end: 0,
       }),
-      frameRate: 3,
+      frameRate: 10,
       repeat: -1,
     });
 
     this.scene.anims.create({
       key: "playeridle",
-      frames: this.scene.anims.generateFrameNumbers("walt", {
-        start: 2,
-        end: 3,
+      frames: this.scene.anims.generateFrameNumbers("vanoSprite", {
+        start: 0,
+        end: 0,
       }),
-      frameRate: 3,
+      frameRate: 10,
       repeat: -1,
     });
 
     this.scene.anims.create({
       key: "playerwalk",
-      frames: this.scene.anims.generateFrameNumbers("walt", {
-        start: 4,
-        end: 6,
+      frames: this.scene.anims.generateFrameNumbers("vanoSprite", {
+        start: 0,
+        end: 1,
       }),
       frameRate: 10,
       repeat: -1,
@@ -130,13 +136,13 @@ class Player extends Phaser.GameObjects.Sprite {
     if (this.cursor.left.isDown) {
       velocityX = -this.walkVelocity;
       this.right = false;
-      this.flipX = true;
+      this.flipX = false;
       isMoving = true;
     }
     if (this.cursor.right.isDown) {
       velocityX = this.walkVelocity;
       this.right = true;
-      this.flipX = false;
+      this.flipX = true;
       isMoving = true;
     }
     if (this.cursor.up.isDown) {
@@ -171,15 +177,15 @@ class Player extends Phaser.GameObjects.Sprite {
       // Space can be used for special action or dash
       console.log("Space pressed - reserved for special action");
     }
-    
+
     if (Phaser.Input.Keyboard.JustDown(this.zKey)) {
       this.hammerBlow(); // Z key for hammer blow
     }
-    
+
     if (Phaser.Input.Keyboard.JustDown(this.xKey)) {
       this.buildBlock(); // X key for building blocks
     }
-    
+
     // C key reserved for future action
     if (Phaser.Input.Keyboard.JustDown(this.cKey)) {
       // Reserved for future action you'll provide
