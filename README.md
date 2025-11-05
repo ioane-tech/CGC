@@ -22,12 +22,17 @@
     +===========================================+
     
     
-         CONTROLS:
+        CONTROLS:
          
-         [W] - Jump
-         [A] - Left
-         [D] - Right
-         [SPACE] - Action
+            [UPARROW] - UP
+            [LEFTARROW] - Left
+            [RIGHTARROW] - Right
+            [BOTTOMARROW] - Bottom
+            [SPACE] - Jump
 
+        ACTIONS:
 
+            [Z] - ?
+            [X] - ??
+            [C] - ???
          
