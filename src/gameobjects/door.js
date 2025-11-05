@@ -6,7 +6,7 @@ export default class Door extends Phaser.GameObjects.Rectangle {
     this.body.setImmovable(true);
     this.body.moves = false;
     this.targetScene = targetScene;
-    this.setVisible(false); // Make invisible in production (set to true for debugging)
+    this.setVisible(true); // Make invisible in production (set to true for debugging)
     this.isActivated = false; // Prevent multiple activations
   }
 
