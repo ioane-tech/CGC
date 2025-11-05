@@ -229,14 +229,14 @@ export default class Splash extends Phaser.Scene {
         sprite.setAlpha(0.5);
 
         // Add lock icon
-        const lock = this.add.graphics();
-        lock.fillStyle(0xff4444);
-        lock.fillRoundedRect(x - 15, y - 25, 30, 20, 5);
-        lock.lineStyle(3, 0xff4444);
-        lock.strokeCircle(x, y - 15, 8);
-        lock.fillStyle(0x000000);
-        lock.fillCircle(x, y - 12, 3);
-        this.lockIcons.push(lock);
+        // const lock = this.add.graphics();
+        // lock.fillStyle(0xff4444);
+        // lock.fillRoundedRect(x - 15, y - 25, 30, 20, 5);
+        // lock.lineStyle(3, 0xff4444);
+        // lock.strokeCircle(x, y - 15, 8);
+        // lock.fillStyle(0x000000);
+        // lock.fillCircle(x, y - 12, 3);
+        // this.lockIcons.push(lock);
 
         // Add "LOCKED" text
         const lockedText = this.add
