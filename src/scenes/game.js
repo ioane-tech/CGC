@@ -44,6 +44,19 @@ export default class Game extends Phaser.Scene {
     this.center_height = this.height / 2;
     this.cameras.main.setBackgroundColor(0x62a2bf); //(0x00b140)//(0x62a2bf)
     
+    // Check if we're in multiplayer mode
+    this.gameMode = this.registry.get("gameMode") || "singleplayer";
+    this.isMultiplayer = (this.gameMode === "host" || this.gameMode === "join");
+    
+    console.log("=== GAME SCENE STARTED ===");
+    console.log("Game mode:", this.gameMode);
+    console.log("Is multiplayer:", this.isMultiplayer);
+    
+    // Initialize multiplayer if needed
+    if (this.isMultiplayer) {
+      this.initializeMultiplayer();
+    }
+    
     // Create dynamic, responsive world dimensions
     const { worldWidth, worldHeight } = this.calculateResponsiveDimensions();
     
@@ -83,13 +96,20 @@ export default class Game extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
     this.addPlayer();
 
-    // MMORPG-style camera: follow player smoothly from slightly above
-    this.cameras.main.startFollow(this.player, true, 0.08, 0.08, 0, -100);
+    // MMORPG-style camera: follow local player smoothly from slightly above
+    const playerToFollow = this.isMultiplayer ? this.localPlayer : this.player;
+    this.cameras.main.startFollow(playerToFollow, true, 0.08, 0.08, 0, -100);
     
     // Responsive camera zoom based on room size
     const baseZoom = Math.min(this.width / worldWidth, this.height / worldHeight) * 1.2;
     this.cameras.main.setZoom(Math.max(0.5, Math.min(2.0, baseZoom))); // Clamp zoom between 0.5x and 2.0x
-    this.physics.world.enable([this.player]);
+    
+    // Enable physics for the appropriate player
+    if (this.isMultiplayer) {
+      this.physics.world.enable([this.localPlayer]);
+    } else {
+      this.physics.world.enable([this.player]);
+    }
     this.addScore();
     this.loadAudios();
     this.playMusic();
@@ -396,7 +416,7 @@ export default class Game extends Phaser.Scene {
   }
 
   /*
-    We add the player to the game and we add the colliders between the player and the rest of the elements. The starting position of the player is defined on the tilemap.
+    We add the player(s) to the game and we add the colliders between the player and the rest of the elements. The starting position of the player is defined on the tilemap.
     */
   addPlayer() {
     this.elements = this.add.group();
@@ -405,11 +425,26 @@ export default class Game extends Phaser.Scene {
     // Set responsive player starting position (proportional to room size)
     const startX = this.roomWidth / 2; // Center of the room horizontally
     const startY = this.roomHeight - (this.roomHeight * 0.17); // 17% from bottom (responsive)
-    this.player = new Player(this, startX, startY, 10);
     
     // Make the character bigger - responsive scaling based on room size
     const playerScale = Math.max(1.2, Math.min(2.0, this.roomWidth / 900)); // Scale between 1.2x and 2.0x
-    this.player.setScale(playerScale);
+    
+    if (this.isMultiplayer) {
+      console.log("Creating local player for multiplayer");
+      // Create local player (the one this client controls)
+      this.localPlayer = new Player(this, startX, startY, 10, true); // true = isLocal
+      this.localPlayer.setScale(playerScale);
+      
+      // For backward compatibility, also set this.player to localPlayer
+      this.player = this.localPlayer;
+      
+      console.log("Local player created:", this.localPlayer);
+    } else {
+      console.log("Creating single player");
+      // Single player mode
+      this.player = new Player(this, startX, startY, 10, true); // true = isLocal (single player is always local)
+      this.player.setScale(playerScale);
+    }
 
     // Temporarily disable platform colliders for testing
     // this.physics.add.collider(
@@ -547,6 +582,221 @@ export default class Game extends Phaser.Scene {
     // Add door interactions
     if (this.doorGroup) {
       this.physics.add.overlap(this.player, this.doorGroup, this.enterDoor, null, this);
+    }
+  }
+
+  /*
+    Initialize multiplayer networking and event handlers
+    */
+  initializeMultiplayer() {
+    console.log("Initializing multiplayer...");
+    
+    // Get the existing network manager from the splash scene
+    const splashScene = this.scene.get('splash');
+    if (splashScene && splashScene.networkManager) {
+      this.networkManager = splashScene.networkManager;
+      console.log("Using existing network manager from splash scene");
+    } else {
+      console.error("No network manager found from splash scene!");
+      return;
+    }
+    
+    // Set up game-specific network event listeners
+    this.setupGameNetworkEvents();
+    
+    // Start sending player updates
+    this.startPlayerSync();
+  }
+
+  /*
+    Set up network event listeners for game events
+    */
+  setupGameNetworkEvents() {
+    if (!this.networkManager || !this.networkManager.socket) {
+      console.error("Network manager or socket not available");
+      return;
+    }
+
+    // Listen for other players' movements
+    this.networkManager.socket.on('playerUpdate', (data) => {
+      this.handleRemotePlayerUpdate(data);
+    });
+
+    // Listen for new players joining the game
+    this.networkManager.socket.on('playerJoinedGame', (data) => {
+      this.handlePlayerJoinedGame(data);
+    });
+
+    // Listen for players leaving the game
+    this.networkManager.socket.on('playerLeftGame', (data) => {
+      this.handlePlayerLeftGame(data);
+    });
+
+    console.log("Game network events set up");
+  }
+
+  /*
+    Start synchronizing local player position and actions
+    */
+  startPlayerSync() {
+    console.log("=== STARTING PLAYER SYNC ===");
+    console.log("Network manager exists:", !!this.networkManager);
+    console.log("Local player exists:", !!this.localPlayer);
+    console.log("Socket exists:", !!(this.networkManager && this.networkManager.socket));
+    
+    // Send player updates every 50ms (20 FPS)
+    this.playerSyncTimer = this.time.addEvent({
+      delay: 50,
+      callback: this.sendPlayerUpdate,
+      callbackScope: this,
+      loop: true
+    });
+
+    console.log("Player sync timer created:", !!this.playerSyncTimer);
+    console.log("Player sync started");
+  }
+
+  /*
+    Send local player's current state to other players
+    */
+  sendPlayerUpdate() {
+    if (!this.networkManager || !this.localPlayer) {
+      console.log('Cannot send player update - missing networkManager or localPlayer');
+      return;
+    }
+
+    const playerData = {
+      x: this.localPlayer.x,
+      y: this.localPlayer.y,
+      velocityX: this.localPlayer.body.velocity.x,
+      velocityY: this.localPlayer.body.velocity.y,
+      flipX: this.localPlayer.flipX,
+      animation: this.localPlayer.anims.currentAnim ? this.localPlayer.anims.currentAnim.key : 'playeridle',
+      playerSprite: this.localPlayer.playerSprite, // Include the character sprite
+      timestamp: Date.now()
+    };
+
+    // Debug: Log what we're sending (only occasionally to avoid spam)
+    if (Math.random() < 0.01) { // 1% chance to log
+      console.log(`Sending sprite: ${playerData.playerSprite} for local player`);
+    }
+
+    this.networkManager.socket.emit('playerUpdate', playerData);
+  }
+
+  /*
+    Handle updates from remote players
+    */
+  handleRemotePlayerUpdate(data) {
+    const { playerId, playerData } = data;
+    
+    // Don't update our own player
+    if (playerId === this.networkManager.playerId) return;
+
+    // Validate playerData
+    if (!playerData || typeof playerData.x === 'undefined' || typeof playerData.y === 'undefined') {
+      console.error('Invalid playerData received:', playerData);
+      return;
+    }
+
+    // Get or create remote player
+    let remotePlayer = this.remotePlayers.get(playerId);
+    if (!remotePlayer) {
+      // Create new remote player
+      remotePlayer = this.createRemotePlayer(playerId, playerData);
+    }
+
+    // Update remote player position and animation
+    if (remotePlayer) {
+      this.updateRemotePlayer(remotePlayer, playerData);
+    }
+  }
+
+  /*
+    Create a new remote player
+    */
+  createRemotePlayer(playerId, playerData) {
+    console.log(`=== CREATING REMOTE PLAYER ===`);
+    console.log(`Player ID: ${playerId}`);
+    console.log(`Sprite from network: ${playerData.playerSprite}`);
+    console.log(`Local player sprite: ${this.registry.get("selectedPlayer")}`);
+    
+    // Validate playerData before creating player
+    if (!playerData || typeof playerData.x === 'undefined' || typeof playerData.y === 'undefined') {
+      console.error('Cannot create remote player - invalid playerData:', playerData);
+      return null;
+    }
+    
+    // Create remote player with their specific character sprite
+    const remotePlayer = new Player(this, playerData.x, playerData.y, 10, false, playerData.playerSprite); // false = not local, pass sprite
+    
+    // Make the character same scale as local player
+    const playerScale = Math.max(1.2, Math.min(2.0, this.roomWidth / 900));
+    remotePlayer.setScale(playerScale);
+    
+    // No tint needed - different character sprites will distinguish players
+    
+    // Add to remote players map
+    this.remotePlayers.set(playerId, remotePlayer);
+    
+    // Add physics and collisions for remote player
+    this.physics.world.enable([remotePlayer]);
+    this.addRemotePlayerCollisions(remotePlayer);
+    
+    console.log("Remote player created and added:", playerId);
+    return remotePlayer;
+  }
+
+  /*
+    Update remote player's position and animation
+    */
+  updateRemotePlayer(remotePlayer, playerData) {
+    // Smoothly interpolate position
+    this.tweens.add({
+      targets: remotePlayer,
+      x: playerData.x,
+      y: playerData.y,
+      duration: 100, // 100ms interpolation
+      ease: 'Linear'
+    });
+
+    // Update flip and animation
+    remotePlayer.flipX = playerData.flipX;
+    if (remotePlayer.anims && playerData.animation) {
+      remotePlayer.anims.play(playerData.animation, true);
+    }
+  }
+
+  /*
+    Add collisions for remote players
+    */
+  addRemotePlayerCollisions(remotePlayer) {
+    // Add basic collisions (walls, bricks)
+    this.physics.add.collider(remotePlayer, this.bricks);
+    
+    if (this.wallGroup) {
+      this.physics.add.collider(remotePlayer, this.wallGroup);
+    }
+  }
+
+  /*
+    Handle new player joining the game
+    */
+  handlePlayerJoinedGame(data) {
+    console.log("Player joined game:", data);
+    // The player will be created when we receive their first playerUpdate
+  }
+
+  /*
+    Handle player leaving the game
+    */
+  handlePlayerLeftGame(data) {
+    console.log("Player left game:", data.playerId);
+    
+    const remotePlayer = this.remotePlayers.get(data.playerId);
+    if (remotePlayer) {
+      remotePlayer.destroy();
+      this.remotePlayers.delete(data.playerId);
     }
   }
 

@@ -236,19 +236,41 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Game synchronization events
   socket.on('playerUpdate', (data) => {
     try {
       const roomId = playerRooms.get(socket.id);
       if (!roomId) return;
 
-      socket.to(roomId).emit('playerUpdate', {
+      const broadcastData = {
         playerId: socket.id,
-        playerData: data.playerData,
-        timestamp: data.timestamp
-      });
+        playerData: data,
+        timestamp: Date.now()
+      };
+
+      // Broadcast player position/state to other players in the room
+      socket.to(roomId).emit('playerUpdate', broadcastData);
 
     } catch (error) {
       console.error('Error handling player update:', error);
+    }
+  });
+
+  socket.on('playerAction', (data) => {
+    try {
+      const roomId = playerRooms.get(socket.id);
+      if (!roomId) return;
+
+      // Broadcast player actions (hammer, build, etc.) to other players
+      socket.to(roomId).emit('playerAction', {
+        playerId: socket.id,
+        action: data.action,
+        actionData: data.actionData,
+        timestamp: Date.now()
+      });
+
+    } catch (error) {
+      console.error('Error handling player action:', error);
     }
   });
 
