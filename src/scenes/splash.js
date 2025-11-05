@@ -130,16 +130,16 @@ export default class Splash extends Phaser.Scene {
       .bitmapText(this.center_width, 500, "pixelFont", "SPACE: jump", 30)
       .setOrigin(0.5);
     this.add
-      .sprite(this.center_width - 120, 620, "pello")
+      .sprite(this.center_width - 120, 620, "logo")
       .setOrigin(0.5)
-      .setScale(0.3);
+      .setScale(0.2);
     this.add
       .bitmapText(this.center_width + 40, 620, "pixelFont", "By VINRE", 15)
       .setOrigin(0.5);
     this.space = this.add
       .bitmapText(
         this.center_width,
-        670,
+        720,
         "pixelFont",
         "Press SPACE to start",
         30

@@ -90,12 +90,13 @@ export default class Bootloader extends Phaser.Scene {
     this.load.image("softbricks", "assets/maps/softbricks.png");
     this.load.image("bricks", "assets/maps/bricks.png");
     this.load.image("background", "assets/maps/background.png");
-
+    
     this.load.image("chain", "assets/images/chain.png");
     this.load.spritesheet("bat", "assets/images/bat.png", {
       frameWidth: 32,
       frameHeight: 32,
     });
+    this.load.image("logo", "assets/images/logo.png");
     this.load.spritesheet("zombie", "assets/images/zombie.png", {
       frameWidth: 64,
       frameHeight: 64,
