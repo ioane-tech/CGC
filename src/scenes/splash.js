@@ -11,14 +11,14 @@ export default class Splash extends Phaser.Scene {
     this.center_width = this.width / 2;
     this.center_height = this.height / 2;
 
-    this.cameras.main.setBackgroundColor(0x000000);
+    this.cameras.main.setBackgroundColor(0x000053);
     this.time.delayedCall(1000, () => this.showInstructions(), null, this);
 
     this.input.keyboard.on("keydown-SPACE", () => this.startGame(), this);
     this.input.keyboard.on("keydown-ENTER", () => this.startGame(), this);
     this.playMusic();
     this.showTitle();
-    this.playAudioRandomly("stone");
+    this.playAudioRandomly("writing-with-pencil");
   }
 
   startGame() {
@@ -35,41 +35,60 @@ export default class Splash extends Phaser.Scene {
     Helper function to show the title letter by letter
     */
   showTitle() {
-    "WALL".split("").forEach((letter, i) => {
+    const word = "CGC";
+    const fontSize = 170;
+    const spacing = 130; // distance between letters
+    const totalWidth = (word.length - 1) * spacing;
+    const startX = this.center_width - totalWidth / 2; // center the group
+
+    word.split("").forEach((letter, i) => {
       this.time.delayedCall(
         200 * (i + 1),
         () => {
-          this.playAudioRandomly("stone_fail");
+          this.playAudioRandomly("writing-with-pencil");
 
-          if (Phaser.Math.Between(0, 5) > 2) this.playAudioRandomly("stone");
-          let text = this.add
-            .bitmapText(130 * (i + 1) + 140, 200, "hammerfont", letter, 170)
-            .setTint(0xca6702)
+          const x = startX + i * spacing;
+          const y = 200;
+
+          const text = this.add
+            .bitmapText(x, y, "hammerfont", letter, fontSize)
+            .setTint(0xffbf00)
             .setOrigin(0.5)
             .setDropShadow(4, 6, 0xf09937, 0.9);
+
           Array(Phaser.Math.Between(4, 6))
             .fill(0)
-            .forEach((i) => new Debris(this, text.x, text.y, 0xca6702));
+            .forEach(() => new Debris(this, text.x, text.y, 0xca6702));
         },
         null,
         this
       );
     });
 
-    "HAMMER".split("").forEach((letter, i) => {
+    const word2 = "Chill Gulf Coders";
+    const fontSize2 = 60;
+    const spacing2 = 50;
+    const totalWidth2 = (word2.length - 1) * spacing2;
+    const startX2 = this.center_width - totalWidth2 / 2;
+
+    word2.split("").forEach((letter, i) => {
       this.time.delayedCall(
         200 * (i + 1) + 800,
         () => {
-          this.playAudioRandomly("stone_fail");
-          if (Phaser.Math.Between(0, 5) > 2) this.playAudioRandomly("stone");
-          let text = this.add
-            .bitmapText(130 * (i + 1), 350, "hammerfont", letter, 170)
-            .setTint(0xca6702)
+          this.playAudioRandomly("writing-with-pencil");
+
+          const x = startX2 + i * spacing2;
+          const y = 350;
+
+          const text = this.add
+            .bitmapText(x, y, "hammerfont", letter, fontSize2)
+            .setTint(0xffbf00)
             .setOrigin(0.5)
-            .setDropShadow(4, 6, 0xf09937, 0.9);
+            .setDropShadow(4, 2, 0xf09937, 0.9);
+
           Array(Phaser.Math.Between(4, 6))
             .fill(0)
-            .forEach((i) => new Debris(this, text.x, text.y, 0xca6702));
+            .forEach(() => new Debris(this, text.x, text.y, 0xca6702));
         },
         null,
         this
@@ -86,9 +105,9 @@ export default class Splash extends Phaser.Scene {
     this.sound.add(key).play({ volume, rate });
   }
 
-  playMusic(theme = "splash") {
+  playMusic(theme = "startSound") {
     this.theme = this.sound.add(theme);
-    this.theme.stop();
+    if (this.theme && this.theme.isPlaying) this.theme.stop();
     this.theme.play({
       mute: false,
       volume: 1,
@@ -108,17 +127,14 @@ export default class Splash extends Phaser.Scene {
       .bitmapText(this.center_width, 450, "pixelFont", "WASD/Arrows: move", 30)
       .setOrigin(0.5);
     this.add
-      .bitmapText(this.center_width, 500, "pixelFont", "S/DOWN: BUILD WALL", 30)
-      .setOrigin(0.5);
-    this.add
-      .bitmapText(this.center_width, 550, "pixelFont", "SPACE: HAMMER", 30)
+      .bitmapText(this.center_width, 500, "pixelFont", "SPACE: jump", 30)
       .setOrigin(0.5);
     this.add
       .sprite(this.center_width - 120, 620, "pello")
       .setOrigin(0.5)
       .setScale(0.3);
     this.add
-      .bitmapText(this.center_width + 40, 620, "pixelFont", "By PELLO", 15)
+      .bitmapText(this.center_width + 40, 620, "pixelFont", "By VINRE", 15)
       .setOrigin(0.5);
     this.space = this.add
       .bitmapText(
