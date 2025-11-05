@@ -81,6 +81,10 @@ export default class Bootloader extends Phaser.Scene {
       frameWidth: 64,
       frameHeight: 64,
     });
+    this.load.spritesheet("vanoSprite", "assets/images/vanoSprite.png", {
+      frameWidth: 64,
+      frameHeight: 127,
+    });
 
     Array(5)
       .fill(0)
