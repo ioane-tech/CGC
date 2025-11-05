@@ -35,9 +35,8 @@ export default class Game extends Phaser.Scene {
     this.center_height = this.height / 2;
     this.cameras.main.setBackgroundColor(0x62a2bf); //(0x00b140)//(0x62a2bf)
     
-    // Create reasonable-sized world for top-down MMORPG view
-    const worldWidth = 1400;
-    const worldHeight = 1200;
+    // Create dynamic, responsive world dimensions
+    const { worldWidth, worldHeight } = this.calculateResponsiveDimensions();
     
     // Add landscape.png as background
     const landscapeBackground = this.add.sprite(
@@ -77,7 +76,10 @@ export default class Game extends Phaser.Scene {
 
     // MMORPG-style camera: follow player smoothly from slightly above
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08, 0, -100);
-    this.cameras.main.setZoom(1.2); // Zoom in slightly for better view
+    
+    // Responsive camera zoom based on room size
+    const baseZoom = Math.min(this.width / worldWidth, this.height / worldHeight) * 1.2;
+    this.cameras.main.setZoom(Math.max(0.5, Math.min(2.0, baseZoom))); // Clamp zoom between 0.5x and 2.0x
     this.physics.world.enable([this.player]);
     this.addScore();
     this.loadAudios();
@@ -105,6 +107,46 @@ export default class Game extends Phaser.Scene {
     });
     this.scoreCoinsLogo.play({ key: "coinscore", repeat: -1 });
   }
+
+  /*
+    Calculate responsive world dimensions based on screen size and aspect ratio
+    */
+  calculateResponsiveDimensions() {
+    const screenWidth = this.sys.game.config.width;
+    const screenHeight = this.sys.game.config.height;
+    const aspectRatio = screenWidth / screenHeight;
+    
+    // Base dimensions (minimum room size)
+    const minWidth = 800;
+    const minHeight = 600;
+    
+    // Target aspect ratio for the room (landscape.png ratio)
+    const targetAspectRatio = 1400 / 1200; // ~1.17
+    
+    let worldWidth, worldHeight;
+    
+    // Responsive scaling based on screen size
+    if (aspectRatio > targetAspectRatio) {
+      // Wide screen - scale based on height
+      worldHeight = Math.max(minHeight, screenHeight * 1.5);
+      worldWidth = worldHeight * targetAspectRatio;
+    } else {
+      // Tall screen - scale based on width  
+      worldWidth = Math.max(minWidth, screenWidth * 1.5);
+      worldHeight = worldWidth / targetAspectRatio;
+    }
+    
+    // Ensure minimum dimensions
+    worldWidth = Math.max(worldWidth, minWidth);
+    worldHeight = Math.max(worldHeight, minHeight);
+    
+    // Store for use in other methods
+    this.roomWidth = worldWidth;
+    this.roomHeight = worldHeight;
+    
+    return { worldWidth, worldHeight };
+  }
+
   /*
     This function creates walls and doors for the landscape room based on the landscape.png layout.
     It creates invisible collision rectangles that match the room boundaries and a door trigger area.
@@ -114,10 +156,10 @@ export default class Game extends Phaser.Scene {
     this.wallGroup = this.add.group();
     this.doorGroup = this.add.group();
 
-    // Room dimensions: 1400x1200 (matching landscape.png)
-    const roomWidth = 1400;
-    const roomHeight = 1200;
-    const wallThickness = 64;
+    // Use responsive room dimensions
+    const roomWidth = this.roomWidth;
+    const roomHeight = this.roomHeight;
+    const wallThickness = Math.max(32, Math.min(64, roomWidth * 0.045)); // Responsive wall thickness
 
     // Top wall (full width)
     const topWall = new Wall(this, roomWidth / 2, wallThickness * 6.1, roomWidth, wallThickness);
@@ -127,28 +169,35 @@ export default class Game extends Phaser.Scene {
     const bottomWall = new Wall(this, roomWidth / 2, roomHeight - wallThickness / 2, roomWidth, wallThickness);
     this.wallGroup.add(bottomWall);
 
-    // Main vertical left wall (upper portion)
-    const leftWallMain = new Wall(this, wallThickness / 2, roomHeight / 2 - 100, wallThickness, roomHeight - 400);
-    this.wallGroup.add(leftWallMain);
-    
-    const angleSegments = 200; // Number of segments to create smooth angle
-    const angleStartY = roomHeight - wallThickness; // Start from bottom
-    const angleLength = 800; // Length of angled section
-    
-    for (let i = 0; i < angleSegments; i++) {
-      const progress = i / angleSegments;
-      const angle = -Math.PI / 3; // -60 degrees (negative for upward angle)
-      
-      const segmentX = wallThickness - 140 + (progress * angleLength * Math.cos(angle));
-      const segmentY = angleStartY + (progress * angleLength * Math.sin(angle));
-      
-      // Create small wall segment
-      const angleWall = new Wall(this, segmentX, segmentY, wallThickness / 2, wallThickness / 2);
-      this.wallGroup.add(angleWall);
-    }
+     // Responsive left wall with 60-degree angled corner (bottom to top)
+     const angleLength = roomHeight * 0.6; // Responsive angle length (60% of room height)
+     const leftWallHeight = roomHeight - angleLength * Math.sin(Math.PI / 3) - wallThickness * 2;
+     
+     // Main vertical left wall (upper portion)
+     const leftWallMain = new Wall(this, wallThickness / 2, leftWallHeight / 2, wallThickness, leftWallHeight);
+     this.wallGroup.add(leftWallMain);
+     
+     // Responsive angle segments based on room size
+     const angleSegments = Math.max(50, Math.min(200, roomWidth / 7)); // Dynamic segment count
+     const angleStartY = roomHeight - wallThickness; // Start from bottom
+     const angleOffset = wallThickness * 2.2; // Responsive offset
+     
+     for (let i = 0; i < angleSegments; i++) {
+       const progress = i / angleSegments;
+       const angle = -Math.PI / 3; // -60 degrees (negative for upward angle)
+       
+       const segmentX = wallThickness - angleOffset + (progress * angleLength * Math.cos(angle));
+       const segmentY = angleStartY + (progress * angleLength * Math.sin(angle));
+       
+       // Create responsive wall segment
+       const segmentSize = wallThickness / 2;
+       const angleWall = new Wall(this, segmentX, segmentY, segmentSize, segmentSize);
+       this.wallGroup.add(angleWall);
+     }
 
-    const doorY = 500; // Door position from landscape.png
-    const doorHeight = 200; // Door opening height
+    // Responsive door positioning (centered vertically with proportional sizing)
+    const doorHeight = roomHeight * 0.16; // 16% of room height
+    const doorY = (roomHeight - doorHeight) / 2; // Center the door vertically
     
     // Right wall top part
     const rightWallTop = new Wall(this, roomWidth - wallThickness / 2, doorY / 2, wallThickness, doorY);
@@ -344,10 +393,14 @@ export default class Game extends Phaser.Scene {
     this.elements = this.add.group();
     this.coins = this.add.group();
 
-    // Set player starting position 200px from bottom of the room
-    const startX = 700; // Center of the 1400px wide room
-    const startY = 1200 - 200; // 200px from bottom of 1200px high room
+    // Set responsive player starting position (proportional to room size)
+    const startX = this.roomWidth / 2; // Center of the room horizontally
+    const startY = this.roomHeight - (this.roomHeight * 0.17); // 17% from bottom (responsive)
     this.player = new Player(this, startX, startY, 10);
+    
+    // Make the character bigger - responsive scaling based on room size
+    const playerScale = Math.max(1.2, Math.min(2.0, this.roomWidth / 900)); // Scale between 1.2x and 2.0x
+    this.player.setScale(playerScale);
 
     // Temporarily disable platform colliders for testing
     // this.physics.add.collider(
