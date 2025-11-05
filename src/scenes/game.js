@@ -8,11 +8,20 @@ import LunchBox from "../gameobjects/lunchbox";
 import Platform from "../gameobjects/platform";
 import Wall from "../gameobjects/wall";
 import Door from "../gameobjects/door";
+import NetworkManager from "../network/NetworkManager";
 import Phaser from "phaser";
 
 export default class Game extends Phaser.Scene {
   constructor() {
     super({ key: "game" });
+    // Multiplayer support
+    this.localPlayer = null;
+    this.remotePlayers = new Map(); // playerId -> Player object
+    this.networkManager = null;
+    this.isMultiplayer = false;
+    this.gameMode = "singleplayer";
+    
+    // Legacy single player support
     this.player = null;
     this.score = 0;
     this.scoreText = null;
