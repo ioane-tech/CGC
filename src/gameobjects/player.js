@@ -167,8 +167,8 @@ class Player extends Phaser.GameObjects.Sprite {
     switch (this.playerSprite) {
       case "vanoSprite":
         return {
-          idle: { start: 0, end: 0 },
-          walk: { start: 0, end: 1 },
+          idle: { start: 0, end: 1 },
+          walk: { start: 2, end: 5 },
           jump: { start: 0, end: 0 },
           hammer: { start: 0, end: 1 },
           build: { start: 0, end: 1 },

@@ -40,14 +40,14 @@ export default class Splash extends Phaser.Scene {
         key: "vanoSprite",
         name: "VANO",
         unlocked: true,
-        frames: { width: 64, height: 127 },
+        frames: { width: 64, height: 150 },
         unlockCondition: "default",
       },
       {
         key: "demchenkoSprite",
         name: "Demchex",
         unlocked: true,
-        frames: { width: 64, height: 64 },
+        frames: { width: 69, height: 147 },
         unlockCondition: "Complete 3 levels",
       },
       {
@@ -68,7 +68,7 @@ export default class Splash extends Phaser.Scene {
         key: "penguin",
         name: "Willen",
         unlocked: false,
-        frames: { width: 64, height: 64 },
+        frames: { width: 64, height: 164 },
         unlockCondition: "Find secret area",
       },
     ];
