@@ -106,6 +106,10 @@ export default class NetworkManager {
       this.scene.events.emit('playerUpdate', data);
     });
 
+    this.socket.on('playerAction', (data) => {
+      this.scene.events.emit('playerAction', data);
+    });
+
     this.socket.on('gameObjectUpdate', (data) => {
       // Handle game object updates (coins, enemies, etc.)
       this.scene.events.emit('gameObjectUpdate', data);
@@ -237,6 +241,21 @@ export default class NetworkManager {
       roomId: this.roomId,
       playerId: this.playerId,
       playerData: playerData,
+      timestamp: Date.now()
+    });
+  }
+
+  /*
+    Send a player action (combat, health updates, etc.)
+    */
+  sendPlayerAction(action, actionData = {}) {
+    if (!this.isConnected || !action) return;
+
+    this.socket.emit('playerAction', {
+      roomId: this.roomId,
+      playerId: this.playerId,
+      action,
+      actionData,
       timestamp: Date.now()
     });
   }

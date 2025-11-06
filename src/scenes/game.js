@@ -20,6 +20,12 @@ export default class Game extends Phaser.Scene {
     this.networkManager = null;
     this.isMultiplayer = false;
     this.gameMode = "singleplayer";
+    this.playerAttacks = null;
+    this.allPlayersGroup = null;
+    this.remotePlayerGroup = null;
+    this.playerAttackCollider = null;
+    this.healthText = null;
+    this.onPlayerActionHandler = null;
     
     // Legacy single player support
     this.player = null;
@@ -51,6 +57,9 @@ export default class Game extends Phaser.Scene {
     console.log("=== GAME SCENE STARTED ===");
     console.log("Game mode:", this.gameMode);
     console.log("Is multiplayer:", this.isMultiplayer);
+
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleSceneShutdown, this);
+    this.events.once(Phaser.Scenes.Events.DESTROY, this.handleSceneShutdown, this);
     
     // Initialize multiplayer if needed
     if (this.isMultiplayer) {
@@ -88,6 +97,19 @@ export default class Game extends Phaser.Scene {
     this.platformGroup = this.add.group();
     this.lunchBoxGroup = this.add.group();
     this.bricks = this.add.group();
+    this.playerAttacks = this.physics.add.group({ allowGravity: false });
+    this.allPlayersGroup = this.physics.add.group();
+    this.remotePlayerGroup = this.physics.add.group();
+    if (this.playerAttackCollider) {
+      this.playerAttackCollider.destroy();
+    }
+    this.playerAttackCollider = this.physics.add.overlap(
+      this.playerAttacks,
+      this.allPlayersGroup,
+      this.handlePlayerAttackHit,
+      null,
+      this
+    );
     
     // Create walls and doors for the landscape room
     this.createWallsAndDoors();
@@ -111,6 +133,10 @@ export default class Game extends Phaser.Scene {
       this.physics.world.enable([this.player]);
     }
     this.addScore();
+    this.addHealthUI();
+    if (this.player) {
+      this.updateHealthUI(this.player.health, this.player.maxHealth);
+    }
     this.loadAudios();
     this.createMuteButton();
     this.playMusic();
@@ -510,6 +536,19 @@ export default class Game extends Phaser.Scene {
       this.player.setScale(playerScale);
     }
 
+    const playerId = this.isMultiplayer && this.networkManager
+      ? this.networkManager.playerId
+      : "localPlayer";
+    if (this.player) {
+      this.player.playerId = playerId;
+      if (this.isMultiplayer && this.localPlayer) {
+        this.localPlayer.playerId = playerId;
+      }
+      if (this.allPlayersGroup) {
+        this.allPlayersGroup.add(this.player);
+      }
+    }
+
     // Temporarily disable platform colliders for testing
     // this.physics.add.collider(
     //   this.player,
@@ -659,6 +698,7 @@ export default class Game extends Phaser.Scene {
     const splashScene = this.scene.get('splash');
     if (splashScene && splashScene.networkManager) {
       this.networkManager = splashScene.networkManager;
+      this.networkManager.scene = this;
       console.log("Using existing network manager from splash scene");
     } else {
       console.error("No network manager found from splash scene!");
@@ -695,6 +735,13 @@ export default class Game extends Phaser.Scene {
     this.networkManager.socket.on('playerLeftGame', (data) => {
       this.handlePlayerLeftGame(data);
     });
+
+    if (!this.onPlayerActionHandler) {
+      this.onPlayerActionHandler = (data) => {
+        this.handleRemotePlayerAction(data);
+      };
+      this.networkManager.socket.on('playerAction', this.onPlayerActionHandler);
+    }
 
     console.log("Game network events set up");
   }
@@ -803,11 +850,18 @@ export default class Game extends Phaser.Scene {
     // Make the character same scale as local player
     const playerScale = Math.max(1.2, Math.min(2.0, this.roomWidth / 900));
     remotePlayer.setScale(playerScale);
+    remotePlayer.playerId = playerId;
     
     // No tint needed - different character sprites will distinguish players
     
     // Add to remote players map
     this.remotePlayers.set(playerId, remotePlayer);
+    if (this.remotePlayerGroup) {
+      this.remotePlayerGroup.add(remotePlayer);
+    }
+    if (this.allPlayersGroup) {
+      this.allPlayersGroup.add(remotePlayer);
+    }
     
     // Add physics and collisions for remote player
     this.physics.world.enable([remotePlayer]);
@@ -835,6 +889,222 @@ export default class Game extends Phaser.Scene {
     const animationKey = playerData.animation || remotePlayer.animationKeys?.idle;
     if (remotePlayer.anims && animationKey) {
       remotePlayer.anims.play(animationKey, true);
+    }
+  }
+
+  handleLocalPlayerAction(action, actionData = {}) {
+    if (!this.isMultiplayer || !this.networkManager) {
+      return;
+    }
+
+    this.networkManager.sendPlayerAction(action, actionData);
+  }
+
+  handleRemotePlayerAction(data) {
+    if (!data || !data.action) return;
+    const { playerId, action, actionData } = data;
+    if (this.networkManager && playerId === this.networkManager.playerId) {
+      return;
+    }
+
+    switch (action) {
+      case "kick":
+        this.handleRemoteKick(playerId, actionData);
+        break;
+      case "healthUpdate":
+        this.applyRemoteHealthUpdate(playerId, actionData);
+        break;
+      default:
+        break;
+    }
+  }
+
+  handleRemoteKick(playerId, actionData = {}) {
+    const remotePlayer = this.remotePlayers.get(playerId);
+    if (!remotePlayer || remotePlayer.dead) return;
+
+    const direction = actionData.direction || (remotePlayer.right ? "right" : "left");
+    if (direction === "right") {
+      remotePlayer.right = true;
+      remotePlayer.flipX = true;
+    } else if (direction === "left") {
+      remotePlayer.right = false;
+      remotePlayer.flipX = false;
+    }
+
+    this.spawnPlayerAttack(remotePlayer, {
+      type: "kick",
+      damage: actionData.damage || 1,
+      direction,
+      width: actionData.width || 54,
+      height: actionData.height || 40,
+      offsetY: actionData.offsetY ?? -10,
+      duration: actionData.duration || 180,
+      singleUse: actionData.singleUse,
+    });
+
+    if (remotePlayer.anims) {
+      remotePlayer.attacking = true;
+      remotePlayer.anims.play(remotePlayer.animationKeys.attack, true);
+    }
+  }
+
+  spawnPlayerAttack(player, attackConfig = {}) {
+    if (!player || !this.playerAttacks) return null;
+
+    const width = attackConfig.width || 48;
+    const height = attackConfig.height || 32;
+    const duration = attackConfig.duration || 200;
+    const damage = attackConfig.damage || 1;
+    const direction = attackConfig.direction || (player.right ? "right" : "left");
+    const facingRight = direction !== "left";
+    const playerWidth = player.displayWidth || player.width || 48;
+    const defaultOffsetX = (playerWidth / 2 + width / 2) * (facingRight ? 1 : -1);
+    const offsetX = attackConfig.offsetX ?? defaultOffsetX;
+    const offsetY = attackConfig.offsetY ?? 0;
+    const originX = attackConfig.x ?? player.x + offsetX;
+    const originY = attackConfig.y ?? player.y + offsetY;
+
+    const attackZone = this.add.rectangle(originX, originY, width, height, 0xff0000, 0.18);
+    attackZone.setVisible(false);
+    attackZone.ownerId = player.playerId || null;
+    attackZone.damage = damage;
+    attackZone.type = attackConfig.type || "attack";
+    attackZone.hitTargets = new Set();
+    attackZone.singleUse = Boolean(attackConfig.singleUse);
+
+    this.physics.add.existing(attackZone);
+    attackZone.body.setAllowGravity(false);
+    attackZone.body.setImmovable(true);
+    attackZone.body.moves = false;
+
+    attackZone.updatePosition = () => {
+      if (!attackZone.active || !player.active) return;
+      attackZone.x = player.x + offsetX;
+      attackZone.y = player.y + offsetY;
+    };
+
+    attackZone.ownerPlayer = player;
+
+    this.playerAttacks.add(attackZone);
+
+    attackZone.once('destroy', () => {
+      attackZone.tickEvent?.remove(false);
+    });
+
+    attackZone.tickEvent = this.time.addEvent({
+      delay: 16,
+      loop: true,
+      callback: () => {
+        if (!attackZone || !attackZone.active) {
+          attackZone.tickEvent?.remove(false);
+          return;
+        }
+        if (!player || !player.active) {
+          attackZone.tickEvent?.remove(false);
+          if (attackZone.active) {
+            attackZone.destroy();
+          }
+          return;
+        }
+        attackZone.updatePosition();
+      },
+    });
+
+    this.time.delayedCall(duration, () => {
+      if (attackZone && attackZone.active) {
+        attackZone.tickEvent?.remove(false);
+        attackZone.destroy();
+      }
+    });
+
+    return attackZone;
+  }
+
+  handlePlayerAttackHit(attack, target) {
+    if (!attack || !target || typeof target.takeDamage !== "function") return;
+    if (!target.active || target.dead) return;
+
+    const targetId = target.playerId || target.name || target.uuid || target.id;
+    if (!attack.hitTargets) {
+      attack.hitTargets = new Set();
+    }
+
+    if (attack.ownerId && targetId && attack.ownerId === targetId) {
+      return;
+    }
+
+    if (targetId && attack.hitTargets.has(targetId)) {
+      return;
+    }
+
+    const result = target.takeDamage(attack.damage || 1);
+    if (result?.applied) {
+      if (targetId) {
+        attack.hitTargets.add(targetId);
+      }
+      if (attack.singleUse && attack.active) {
+        attack.tickEvent?.remove(false);
+        attack.destroy();
+      }
+    }
+  }
+
+  handlePlayerHealthChanged(player) {
+    if (!player) return;
+    if (player.isLocal) {
+      this.updateHealthUI(player.health, player.maxHealth);
+      this.handleLocalPlayerAction("healthUpdate", {
+        health: player.health,
+        maxHealth: player.maxHealth,
+      });
+    }
+  }
+
+  applyRemoteHealthUpdate(playerId, actionData = {}) {
+    if (!playerId) return;
+    const targetPlayer = this.remotePlayers.get(playerId) ||
+      (this.networkManager && playerId === this.networkManager.playerId ? this.player : null);
+    if (!targetPlayer) return;
+
+    if (typeof actionData.maxHealth === "number") {
+      targetPlayer.maxHealth = actionData.maxHealth;
+    }
+    if (typeof actionData.health === "number") {
+      targetPlayer.health = Phaser.Math.Clamp(actionData.health, 0, targetPlayer.maxHealth || 1);
+    }
+
+    targetPlayer.updateHealthBar?.();
+
+    if (targetPlayer.isLocal) {
+      this.updateHealthUI(targetPlayer.health, targetPlayer.maxHealth);
+    }
+  }
+
+  addHealthUI() {
+    if (this.healthText) {
+      this.healthText.destroy();
+      this.healthText = null;
+    }
+
+    this.healthText = this.add
+      .bitmapText(75, 60, "pixelFont", "HP: 0/0", 30)
+      .setOrigin(0)
+      .setScrollFactor(0)
+      .setDropShadow(0, 4, 0x222222, 0.9);
+  }
+
+  updateHealthUI(currentHealth, maxHealth) {
+    if (!this.healthText) return;
+    const clampedMax = Math.max(maxHealth || 0, 0);
+    const clampedHealth = Math.max(Math.min(currentHealth || 0, clampedMax), 0);
+    this.healthText.setText(`HP: ${clampedHealth}/${clampedMax}`);
+  }
+
+  handleSceneShutdown() {
+    if (this.networkManager?.socket && this.onPlayerActionHandler) {
+      this.networkManager.socket.off('playerAction', this.onPlayerActionHandler);
+      this.onPlayerActionHandler = null;
     }
   }
 
@@ -897,8 +1167,10 @@ export default class Game extends Phaser.Scene {
       foe.death();
       this.playAudio("foedeath");
     } else if (!player.dead && this.number > 0) {
-      player.die();
-      this.playAudio("death");
+      const result = typeof player.takeDamage === "function" ? player.takeDamage(1) : { applied: false };
+      if (result?.applied && result.died) {
+        this.playAudio("death");
+      }
     }
   }
 

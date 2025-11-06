@@ -67,8 +67,14 @@ class Player extends Phaser.GameObjects.Sprite {
     this.jumpVelocity = -400;
     this.invincible = false;
 
+    this.maxHealth = health;
     this.health = health;
     this.dead = false;
+    this.playerId = null;
+    this.damageCooldown = 150; // ms between damage ticks
+    this.lastDamageTime = 0;
+
+    this.createHealthBar();
 
     // Remove old WASD keys - we're using arrows only now
   }
@@ -269,8 +275,7 @@ class Player extends Phaser.GameObjects.Sprite {
 
     // C key reserved for future action
     if (this.cKey && Phaser.Input.Keyboard.JustDown(this.cKey)) {
-      // Reserved for future action you'll provide
-      console.log("C key pressed - action reserved for future implementation");
+      this.kick();
     }
   }
 
@@ -336,6 +341,36 @@ class Player extends Phaser.GameObjects.Sprite {
     this.anims.play(this.animationKeys.attack, true);
   }
 
+  kick() {
+    if (this.attacking || this.dead) return;
+    this.attacking = true;
+    const facingRight = this.right;
+    if (this.scene && typeof this.scene.spawnPlayerAttack === "function") {
+      this.scene.spawnPlayerAttack(this, {
+        type: "kick",
+        damage: 1,
+        direction: facingRight ? "right" : "left",
+        width: 54,
+        height: 40,
+        offsetY: -10,
+        duration: 180,
+      });
+    }
+
+    if (this.scene && typeof this.scene.handleLocalPlayerAction === "function" && this.isLocal) {
+      this.scene.handleLocalPlayerAction("kick", {
+        direction: facingRight ? "right" : "left",
+        width: 54,
+        height: 40,
+        offsetY: -10,
+        duration: 180,
+        damage: 1,
+      });
+    }
+
+    this.anims.play(this.animationKeys.attack, true);
+  }
+
   /*
     This just turns the player in the opposite direction.
     */
@@ -370,23 +405,38 @@ class Player extends Phaser.GameObjects.Sprite {
     This is called when the player is hit by an enemy. It reduces the health and checks if the player is dead.
     */
   hit() {
-    this.health--;
-    this.anims.play(this.animationKeys.dead, true);
-    this.body.enable = false;
-    if (this.health === 0) {
-      this.die();
-    }
+    this.takeDamage(1);
   }
 
   /*
     This is called when the player is dead. It plays the death animation and restarts the scene.
     */
   die() {
+    if (this.dead) return;
     this.dead = true;
     this.anims.play(this.animationKeys.dead, true);
-    this.body.immovable = true;
-    this.body.moves = false;
-    this.scene.restartScene();
+    if (this.body) {
+      this.body.immovable = true;
+      this.body.moves = false;
+      this.body.setVelocity(0, 0);
+      this.body.enable = false;
+    }
+
+    this.updateHealthBar();
+
+    if (this.isLocal) {
+      if (this.scene && typeof this.scene.restartScene === "function") {
+        this.scene.restartScene();
+      }
+    } else {
+      if (this.scene && this.scene.time) {
+        this.scene.time.delayedCall(1500, () => {
+          if (this && this.destroy) {
+            this.destroy();
+          }
+        });
+      }
+    }
   }
 
   /*
@@ -433,6 +483,91 @@ class Player extends Phaser.GameObjects.Sprite {
       scale: { from: 1.2, to: 1 },
       repeat: 10,
     });
+  }
+
+  takeDamage(amount = 1) {
+    if (this.invincible || this.dead || amount <= 0) return { applied: false, died: false };
+    const now = this.scene?.time?.now || 0;
+    if (now && this.lastDamageTime && now - this.lastDamageTime < this.damageCooldown) {
+      return { applied: false, died: false };
+    }
+
+    this.lastDamageTime = now;
+    this.health = Math.max(0, this.health - amount);
+    this.updateHealthBar();
+    if (this.scene && typeof this.scene.handlePlayerHealthChanged === "function") {
+      this.scene.handlePlayerHealthChanged(this);
+    }
+    this.showDamageFeedback();
+
+    if (this.health <= 0) {
+      this.die();
+      return { applied: true, died: true };
+    }
+    return { applied: true, died: false };
+  }
+
+  heal(amount = 1) {
+    if (amount <= 0) return;
+    this.health = Phaser.Math.Clamp(this.health + amount, 0, this.maxHealth);
+    this.updateHealthBar();
+    if (this.scene && typeof this.scene.handlePlayerHealthChanged === "function") {
+      this.scene.handlePlayerHealthChanged(this);
+    }
+  }
+
+  showDamageFeedback() {
+    if (!this.scene) return;
+    this.scene.tweens.add({
+      targets: this,
+      duration: 80,
+      repeat: 2,
+      yoyo: true,
+      alpha: { from: 0.4, to: 1 },
+      onComplete: () => {
+        this.setAlpha(1);
+      },
+    });
+  }
+
+  createHealthBar() {
+    if (!this.scene) return;
+    this.healthBar = this.scene.add.graphics();
+    this.healthBar.setDepth(999);
+    this.updateHealthBar();
+  }
+
+  updateHealthBar() {
+    if (!this.healthBar || !this.scene) return;
+    const barWidth = 60;
+    const barHeight = 8;
+    const offsetY = this.displayHeight ? this.displayHeight / 2 + 20 : 50;
+    const x = this.x - barWidth / 2;
+    const y = this.y - offsetY;
+
+    this.healthBar.clear();
+    this.healthBar.fillStyle(0x000000, 0.5);
+    this.healthBar.fillRect(x, y, barWidth, barHeight);
+
+    const maxHealth = this.maxHealth > 0 ? this.maxHealth : 1;
+    const healthPercent = Phaser.Math.Clamp(this.health / maxHealth, 0, 1);
+    const innerWidth = Math.max(0, (barWidth - 2) * healthPercent);
+    const color = healthPercent > 0.5 ? 0x3aff3a : healthPercent > 0.25 ? 0xffc107 : 0xff3a3a;
+    this.healthBar.fillStyle(color, 0.9);
+    this.healthBar.fillRect(x + 1, y + 1, innerWidth, barHeight - 2);
+  }
+
+  preUpdate(time, delta) {
+    super.preUpdate(time, delta);
+    this.updateHealthBar();
+  }
+
+  destroy(fromScene) {
+    if (this.healthBar) {
+      this.healthBar.destroy();
+      this.healthBar = null;
+    }
+    super.destroy(fromScene);
   }
 }
 
