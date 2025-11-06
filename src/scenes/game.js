@@ -6,11 +6,22 @@ import Turn from "../gameobjects/turn";
 import Coin from "../gameobjects/coin";
 import LunchBox from "../gameobjects/lunchbox";
 import Platform from "../gameobjects/platform";
+import Wall from "../gameobjects/wall";
+import Door from "../gameobjects/door";
+import NetworkManager from "../network/NetworkManager";
 import Phaser from "phaser";
 
 export default class Game extends Phaser.Scene {
   constructor() {
     super({ key: "game" });
+    // Multiplayer support
+    this.localPlayer = null;
+    this.remotePlayers = new Map(); // playerId -> Player object
+    this.networkManager = null;
+    this.isMultiplayer = false;
+    this.gameMode = "singleplayer";
+    
+    // Legacy single player support
     this.player = null;
     this.score = 0;
     this.scoreText = null;
@@ -32,17 +43,73 @@ export default class Game extends Phaser.Scene {
     this.center_width = this.width / 2;
     this.center_height = this.height / 2;
     this.cameras.main.setBackgroundColor(0x62a2bf); //(0x00b140)//(0x62a2bf)
-    this.add.tileSprite(0, 1000, 1024 * 10, 512, "landscape").setOrigin(0.5);
-    this.createMap();
+    
+    // Check if we're in multiplayer mode
+    this.gameMode = this.registry.get("gameMode") || "singleplayer";
+    this.isMultiplayer = (this.gameMode === "host" || this.gameMode === "join");
+    
+    console.log("=== GAME SCENE STARTED ===");
+    console.log("Game mode:", this.gameMode);
+    console.log("Is multiplayer:", this.isMultiplayer);
+    
+    // Initialize multiplayer if needed
+    if (this.isMultiplayer) {
+      this.initializeMultiplayer();
+    }
+    
+    // Create dynamic, responsive world dimensions
+    const { worldWidth, worldHeight } = this.calculateResponsiveDimensions();
+    
+    // Add landscape.png as background
+    const landscapeBackground = this.add.sprite(
+      worldWidth / 2, 
+      worldHeight / 2, 
+      "landscape"
+    );
+    
+    // Scale the background to cover the entire world
+    landscapeBackground.setDisplaySize(worldWidth, worldHeight);
+    
+    // Send background to the back so other elements appear on top
+    landscapeBackground.setDepth(-1000);
+    
+    // Optionally add clean room overlay (comment out if you want pure landscape)
+    // this.createCleanRoomBackground(worldWidth, worldHeight);
+    
+    // Temporarily disable tilemap for testing
+    // this.createMap();
+    
+    // Create basic groups for game objects
+    this.batGroup = this.add.group();
+    this.zombieGroup = this.add.group();
+    this.foesGroup = this.add.group();
+    this.turnGroup = this.add.group();
+    this.exitGroup = this.add.group();
+    this.platformGroup = this.add.group();
+    this.lunchBoxGroup = this.add.group();
+    this.bricks = this.add.group();
+    
+    // Create walls and doors for the landscape room
+    this.createWallsAndDoors();
 
-    this.cameras.main.setBounds(0, 0, 20920 * 2, 20080 * 2);
-    this.physics.world.setBounds(0, 0, 20920 * 2, 20080 * 2);
+    this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
+    this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
     this.addPlayer();
 
-    // MMORPG-style camera: follow player smoothly from slightly above
-    this.cameras.main.startFollow(this.player, true, 0.08, 0.08, 0, -100);
-    this.cameras.main.setZoom(1.2); // Zoom in slightly for better view
-    this.physics.world.enable([this.player]);
+    // MMORPG-style camera: follow local player smoothly from slightly above
+    const playerToFollow = this.isMultiplayer ? this.localPlayer : this.player;
+    this.cameras.main.startFollow(playerToFollow, true, 0.08, 0.08, 0, -100);
+    
+    // Responsive camera zoom based on room size
+    const baseZoom = Math.min(this.width / worldWidth, this.height / worldHeight) * 1.2;
+    this.cameras.main.setZoom(Math.max(0.5, Math.min(2.0, baseZoom))); // Clamp zoom between 0.5x and 2.0x
+    
+    // Enable physics for the appropriate player
+    if (this.isMultiplayer) {
+      this.physics.world.enable([this.localPlayer]);
+    } else {
+      this.physics.world.enable([this.player]);
+    }
     this.addScore();
     this.loadAudios();
     this.playMusic();
@@ -68,6 +135,116 @@ export default class Game extends Phaser.Scene {
       frameRate: 8,
     });
     this.scoreCoinsLogo.play({ key: "coinscore", repeat: -1 });
+  }
+
+  /*
+    Calculate responsive world dimensions based on screen size and aspect ratio
+    */
+  calculateResponsiveDimensions() {
+    const screenWidth = this.sys.game.config.width;
+    const screenHeight = this.sys.game.config.height;
+    const aspectRatio = screenWidth / screenHeight;
+    
+    // Base dimensions (minimum room size)
+    const minWidth = 800;
+    const minHeight = 600;
+    
+    // Target aspect ratio for the room (landscape.png ratio)
+    const targetAspectRatio = 1400 / 1200; // ~1.17
+    
+    let worldWidth, worldHeight;
+    
+    // Responsive scaling based on screen size
+    if (aspectRatio > targetAspectRatio) {
+      // Wide screen - scale based on height
+      worldHeight = Math.max(minHeight, screenHeight * 1.5);
+      worldWidth = worldHeight * targetAspectRatio;
+    } else {
+      // Tall screen - scale based on width  
+      worldWidth = Math.max(minWidth, screenWidth * 1.5);
+      worldHeight = worldWidth / targetAspectRatio;
+    }
+    
+    // Ensure minimum dimensions
+    worldWidth = Math.max(worldWidth, minWidth);
+    worldHeight = Math.max(worldHeight, minHeight);
+    
+    // Store for use in other methods
+    this.roomWidth = worldWidth;
+    this.roomHeight = worldHeight;
+    
+    return { worldWidth, worldHeight };
+  }
+
+  /*
+    This function creates walls and doors for the landscape room based on the landscape.png layout.
+    It creates invisible collision rectangles that match the room boundaries and a door trigger area.
+    */
+  createWallsAndDoors() {
+    // Create wall and door groups
+    this.wallGroup = this.add.group();
+    this.doorGroup = this.add.group();
+
+    // Use responsive room dimensions
+    const roomWidth = this.roomWidth;
+    const roomHeight = this.roomHeight;
+    const wallThickness = Math.max(32, Math.min(64, roomWidth * 0.045)); // Responsive wall thickness
+
+    // Top wall (full width)
+    const topWall = new Wall(this, roomWidth / 2, wallThickness * 6.1, roomWidth, wallThickness);
+    this.wallGroup.add(topWall);
+
+    // Bottom wall (full width)
+    const bottomWall = new Wall(this, roomWidth / 2, roomHeight - wallThickness / 2, roomWidth, wallThickness);
+    this.wallGroup.add(bottomWall);
+
+     // Responsive left wall with 60-degree angled corner (bottom to top)
+     const angleLength = roomHeight * 0.6; // Responsive angle length (60% of room height)
+     const leftWallHeight = roomHeight - angleLength * Math.sin(Math.PI / 3) - wallThickness * 2;
+     
+     // Main vertical left wall (upper portion)
+     const leftWallMain = new Wall(this, wallThickness / 2, leftWallHeight / 2, wallThickness, leftWallHeight);
+     this.wallGroup.add(leftWallMain);
+     
+     // Responsive angle segments based on room size
+     const angleSegments = Math.max(50, Math.min(200, roomWidth / 7)); // Dynamic segment count
+     const angleStartY = roomHeight - wallThickness; // Start from bottom
+     const angleOffset = wallThickness * 2.2; // Responsive offset
+     
+     for (let i = 0; i < angleSegments; i++) {
+       const progress = i / angleSegments;
+       const angle = -Math.PI / 3; // -60 degrees (negative for upward angle)
+       
+       const segmentX = wallThickness - angleOffset + (progress * angleLength * Math.cos(angle));
+       const segmentY = angleStartY + (progress * angleLength * Math.sin(angle));
+       
+       // Create responsive wall segment
+       const segmentSize = wallThickness / 2;
+       const angleWall = new Wall(this, segmentX, segmentY, segmentSize, segmentSize);
+       this.wallGroup.add(angleWall);
+     }
+
+    // Responsive door positioning (centered vertically with proportional sizing)
+    const doorHeight = roomHeight * 0.1; // 16% of room height
+    const doorY = (roomHeight - doorHeight) / 2; // Center the door vertically
+    
+    // Right wall top part
+    const rightWallTop = new Wall(this, roomWidth - wallThickness / 2, doorY / 2, wallThickness, doorY);
+    this.wallGroup.add(rightWallTop);
+
+    // Right wall bottom part
+    const rightWallBottom = new Wall(this, roomWidth - wallThickness / 2, doorY + doorHeight + (roomHeight - doorY - doorHeight) / 2, wallThickness, roomHeight - doorY - doorHeight);
+    this.wallGroup.add(rightWallBottom);
+
+    // Door trigger area (positioned at the door opening)
+    const door = new Door(this, roomWidth - (wallThickness / 2) - 100, doorY + (doorHeight / 2) + 160, wallThickness, doorHeight, 1);
+    this.doorGroup.add(door);
+
+    const debugMode = true; // Turned on to see the angled wall
+    if (debugMode) {
+      this.wallGroup.children.entries.forEach(wall => wall.toggleDebugVisibility());
+      this.doorGroup.children.entries.forEach(door => door.toggleDebugVisibility());
+    }
   }
 
   /*
@@ -136,12 +313,12 @@ export default class Game extends Phaser.Scene {
         this.lunchBoxGroup.add(new LunchBox(this, object.x, object.y));
       }
 
-      if (object.name === "text") {
-        this.add
-          .bitmapText(object.x, object.y, "pixelFont", object.text.text, 30)
-          .setDropShadow(2, 4, 0x222222, 0.9)
-          .setOrigin(0);
-      }
+      // if (object.name === "text") {
+      //   this.add
+      //     .bitmapText(object.x, object.y, "pixelFont", object.text.text, 30)
+      //     .setDropShadow(2, 4, 0x222222, 0.9)
+      //     .setOrigin(0);
+      // }
 
       if (object.name === "exit") {
         this.exitGroup.add(
@@ -226,36 +403,69 @@ export default class Game extends Phaser.Scene {
   hitFloor() {}
 
   /*
-    We add the player to the game and we add the colliders between the player and the rest of the elements. The starting position of the player is defined on the tilemap.
+    This function is called when the player enters a door. It activates the door and transitions to the target scene.
+    */
+  enterDoor(player, door) {
+    if (door.activate()) {
+      this.playAudio("stage");
+      this.time.delayedCall(500, () => {
+        if (this.theme) this.theme.stop();
+        this.scene.start("transition", { name: "STAGE", number: door.targetScene });
+      }, null, this);
+    }
+  }
+
+  /*
+    We add the player(s) to the game and we add the colliders between the player and the rest of the elements. The starting position of the player is defined on the tilemap.
     */
   addPlayer() {
     this.elements = this.add.group();
     this.coins = this.add.group();
 
-    const playerPosition = this.objectsLayer.objects.find(
-      (object) => object.name === "player"
-    );
-    this.player = new Player(this, playerPosition.x, playerPosition.y, 0);
+    // Set responsive player starting position (proportional to room size)
+    const startX = this.roomWidth / 2; // Center of the room horizontally
+    const startY = this.roomHeight - (this.roomHeight * 0.17); // 17% from bottom (responsive)
+    
+    // Make the character bigger - responsive scaling based on room size
+    const playerScale = Math.max(1.2, Math.min(2.0, this.roomWidth / 900)); // Scale between 1.2x and 2.0x
+    
+    if (this.isMultiplayer) {
+      console.log("Creating local player for multiplayer");
+      // Create local player (the one this client controls)
+      this.localPlayer = new Player(this, startX, startY, 10, true); // true = isLocal
+      this.localPlayer.setScale(playerScale);
+      
+      // For backward compatibility, also set this.player to localPlayer
+      this.player = this.localPlayer;
+      
+      console.log("Local player created:", this.localPlayer);
+    } else {
+      console.log("Creating single player");
+      // Single player mode
+      this.player = new Player(this, startX, startY, 10, true); // true = isLocal (single player is always local)
+      this.player.setScale(playerScale);
+    }
 
-    this.physics.add.collider(
-      this.player,
-      this.platform,
-      this.hitFloor,
-      () => {
-        return true;
-      },
-      this
-    );
+    // Temporarily disable platform colliders for testing
+    // this.physics.add.collider(
+    //   this.player,
+    //   this.platform,
+    //   this.hitFloor,
+    //   () => {
+    //     return true;
+    //   },
+    //   this
+    // );
 
-    this.physics.add.collider(
-      this.player,
-      this.platformGroup,
-      this.hitFloor,
-      () => {
-        return true;
-      },
-      this
-    );
+    // this.physics.add.collider(
+    //   this.player,
+    //   this.platformGroup,
+    //   this.hitFloor,
+    //   () => {
+    //     return true;
+    //   },
+    //   this
+    // );
 
     this.physics.add.collider(
       this.player,
@@ -361,6 +571,233 @@ export default class Game extends Phaser.Scene {
       },
       this
     );
+
+    // Add wall collisions
+    if (this.wallGroup) {
+      this.physics.add.collider(this.player, this.wallGroup);
+      this.physics.add.collider(this.batGroup, this.wallGroup, this.turnFoe, null, this);
+      this.physics.add.collider(this.zombieGroup, this.wallGroup, this.turnFoe, null, this);
+    }
+
+    // Add door interactions
+    if (this.doorGroup) {
+      this.physics.add.overlap(this.player, this.doorGroup, this.enterDoor, null, this);
+    }
+  }
+
+  /*
+    Initialize multiplayer networking and event handlers
+    */
+  initializeMultiplayer() {
+    console.log("Initializing multiplayer...");
+    
+    // Get the existing network manager from the splash scene
+    const splashScene = this.scene.get('splash');
+    if (splashScene && splashScene.networkManager) {
+      this.networkManager = splashScene.networkManager;
+      console.log("Using existing network manager from splash scene");
+    } else {
+      console.error("No network manager found from splash scene!");
+      return;
+    }
+    
+    // Set up game-specific network event listeners
+    this.setupGameNetworkEvents();
+    
+    // Start sending player updates
+    this.startPlayerSync();
+  }
+
+  /*
+    Set up network event listeners for game events
+    */
+  setupGameNetworkEvents() {
+    if (!this.networkManager || !this.networkManager.socket) {
+      console.error("Network manager or socket not available");
+      return;
+    }
+
+    // Listen for other players' movements
+    this.networkManager.socket.on('playerUpdate', (data) => {
+      this.handleRemotePlayerUpdate(data);
+    });
+
+    // Listen for new players joining the game
+    this.networkManager.socket.on('playerJoinedGame', (data) => {
+      this.handlePlayerJoinedGame(data);
+    });
+
+    // Listen for players leaving the game
+    this.networkManager.socket.on('playerLeftGame', (data) => {
+      this.handlePlayerLeftGame(data);
+    });
+
+    console.log("Game network events set up");
+  }
+
+  /*
+    Start synchronizing local player position and actions
+    */
+  startPlayerSync() {
+    console.log("=== STARTING PLAYER SYNC ===");
+    console.log("Network manager exists:", !!this.networkManager);
+    console.log("Local player exists:", !!this.localPlayer);
+    console.log("Socket exists:", !!(this.networkManager && this.networkManager.socket));
+    
+    // Send player updates every 50ms (20 FPS)
+    this.playerSyncTimer = this.time.addEvent({
+      delay: 50,
+      callback: this.sendPlayerUpdate,
+      callbackScope: this,
+      loop: true
+    });
+
+    console.log("Player sync timer created:", !!this.playerSyncTimer);
+    console.log("Player sync started");
+  }
+
+  /*
+    Send local player's current state to other players
+    */
+  sendPlayerUpdate() {
+    if (!this.networkManager || !this.localPlayer) {
+      console.log('Cannot send player update - missing networkManager or localPlayer');
+      return;
+    }
+
+    const playerData = {
+      x: this.localPlayer.x,
+      y: this.localPlayer.y,
+      velocityX: this.localPlayer.body.velocity.x,
+      velocityY: this.localPlayer.body.velocity.y,
+      flipX: this.localPlayer.flipX,
+      animation: this.localPlayer.anims.currentAnim ? this.localPlayer.anims.currentAnim.key : 'playeridle',
+      playerSprite: this.localPlayer.playerSprite, // Include the character sprite
+      timestamp: Date.now()
+    };
+
+    // Debug: Log what we're sending (only occasionally to avoid spam)
+    if (Math.random() < 0.01) { // 1% chance to log
+      console.log(`Sending sprite: ${playerData.playerSprite} for local player`);
+    }
+
+    this.networkManager.socket.emit('playerUpdate', playerData);
+  }
+
+  /*
+    Handle updates from remote players
+    */
+  handleRemotePlayerUpdate(data) {
+    const { playerId, playerData } = data;
+    
+    // Don't update our own player
+    if (playerId === this.networkManager.playerId) return;
+
+    // Validate playerData
+    if (!playerData || typeof playerData.x === 'undefined' || typeof playerData.y === 'undefined') {
+      console.error('Invalid playerData received:', playerData);
+      return;
+    }
+
+    // Get or create remote player
+    let remotePlayer = this.remotePlayers.get(playerId);
+    if (!remotePlayer) {
+      // Create new remote player
+      remotePlayer = this.createRemotePlayer(playerId, playerData);
+    }
+
+    // Update remote player position and animation
+    if (remotePlayer) {
+      this.updateRemotePlayer(remotePlayer, playerData);
+    }
+  }
+
+  /*
+    Create a new remote player
+    */
+  createRemotePlayer(playerId, playerData) {
+    console.log(`=== CREATING REMOTE PLAYER ===`);
+    console.log(`Player ID: ${playerId}`);
+    console.log(`Sprite from network: ${playerData.playerSprite}`);
+    console.log(`Local player sprite: ${this.registry.get("selectedPlayer")}`);
+    
+    // Validate playerData before creating player
+    if (!playerData || typeof playerData.x === 'undefined' || typeof playerData.y === 'undefined') {
+      console.error('Cannot create remote player - invalid playerData:', playerData);
+      return null;
+    }
+    
+    // Create remote player with their specific character sprite
+    const remotePlayer = new Player(this, playerData.x, playerData.y, 10, false, playerData.playerSprite); // false = not local, pass sprite
+    
+    // Make the character same scale as local player
+    const playerScale = Math.max(1.2, Math.min(2.0, this.roomWidth / 900));
+    remotePlayer.setScale(playerScale);
+    
+    // No tint needed - different character sprites will distinguish players
+    
+    // Add to remote players map
+    this.remotePlayers.set(playerId, remotePlayer);
+    
+    // Add physics and collisions for remote player
+    this.physics.world.enable([remotePlayer]);
+    this.addRemotePlayerCollisions(remotePlayer);
+    
+    console.log("Remote player created and added:", playerId);
+    return remotePlayer;
+  }
+
+  /*
+    Update remote player's position and animation
+    */
+  updateRemotePlayer(remotePlayer, playerData) {
+    // Smoothly interpolate position
+    this.tweens.add({
+      targets: remotePlayer,
+      x: playerData.x,
+      y: playerData.y,
+      duration: 100, // 100ms interpolation
+      ease: 'Linear'
+    });
+
+    // Update flip and animation
+    remotePlayer.flipX = playerData.flipX;
+    if (remotePlayer.anims && playerData.animation) {
+      remotePlayer.anims.play(playerData.animation, true);
+    }
+  }
+
+  /*
+    Add collisions for remote players
+    */
+  addRemotePlayerCollisions(remotePlayer) {
+    // Add basic collisions (walls, bricks)
+    this.physics.add.collider(remotePlayer, this.bricks);
+    
+    if (this.wallGroup) {
+      this.physics.add.collider(remotePlayer, this.wallGroup);
+    }
+  }
+
+  /*
+    Handle new player joining the game
+    */
+  handlePlayerJoinedGame(data) {
+    console.log("Player joined game:", data);
+    // The player will be created when we receive their first playerUpdate
+  }
+
+  /*
+    Handle player leaving the game
+    */
+  handlePlayerLeftGame(data) {
+    console.log("Player left game:", data.playerId);
+    
+    const remotePlayer = this.remotePlayers.get(data.playerId);
+    if (remotePlayer) {
+      remotePlayer.destroy();
+      this.remotePlayers.delete(data.playerId);
+    }
   }
 
   /*

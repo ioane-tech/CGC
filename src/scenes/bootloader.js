@@ -81,6 +81,10 @@ export default class Bootloader extends Phaser.Scene {
       frameWidth: 64,
       frameHeight: 64,
     });
+    this.load.spritesheet("vanoSprite", "assets/images/vanoSprite.png", {
+      frameWidth: 64,
+      frameHeight: 127,
+    });
 
     Array(5)
       .fill(0)
@@ -98,6 +102,10 @@ export default class Bootloader extends Phaser.Scene {
     });
     this.load.image("logo", "assets/images/logo.png");
     this.load.spritesheet("zombie", "assets/images/zombie.png", {
+      frameWidth: 64,
+      frameHeight: 64,
+    });
+    this.load.spritesheet("penguin", "assets/images/penguin.png", {
       frameWidth: 64,
       frameHeight: 64,
     });

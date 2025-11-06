@@ -3,24 +3,54 @@ import Brick from "./brick";
 import { JumpSmoke } from "./particle";
 
 class Player extends Phaser.GameObjects.Sprite {
-  constructor(scene, x, y, health = 10) {
-    super(scene, x, y, "walt");
+  constructor(scene, x, y, health = 10, isLocal = true, remoteSprite = null) {
+    // For remote players, use the provided sprite; for local players, get from registry
+    let selectedPlayer;
+    if (isLocal) {
+      // Local player: use registry
+      selectedPlayer = scene.registry.get("selectedPlayer") || "vanoSprite";
+    } else {
+      // Remote player: use provided sprite or fallback
+      selectedPlayer = remoteSprite || "vanoSprite";
+    }
+    
+    super(scene, x, y, selectedPlayer);
     this.setOrigin(0.5);
+    this.playerSprite = selectedPlayer;
+    this.isLocal = isLocal; // Whether this player is controlled by local input
+    
+    console.log(`Player created: isLocal=${isLocal}, sprite=${selectedPlayer}, remoteSprite=${remoteSprite}`);
 
     this.scene.add.existing(this);
     this.scene.physics.add.existing(this);
-    
-    // New control scheme - Arrow keys only
-    this.cursor = this.scene.input.keyboard.createCursorKeys();
-    this.spaceBar = this.scene.input.keyboard.addKey(
-      Phaser.Input.Keyboard.KeyCodes.SPACE
-    );
-    
-    // Action keys Z, X, C
-    this.zKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
-    this.xKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
-    this.cKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.C);
-    
+
+    // Only set up input controls for local players
+    if (this.isLocal) {
+      // New control scheme - Arrow keys only
+      this.cursor = this.scene.input.keyboard.createCursorKeys();
+      this.spaceBar = this.scene.input.keyboard.addKey(
+        Phaser.Input.Keyboard.KeyCodes.SPACE
+      );
+
+      // Action keys Z, X, C
+      this.zKey = this.scene.input.keyboard.addKey(
+        Phaser.Input.Keyboard.KeyCodes.Z
+      );
+      this.xKey = this.scene.input.keyboard.addKey(
+        Phaser.Input.Keyboard.KeyCodes.X
+      );
+      this.cKey = this.scene.input.keyboard.addKey(
+        Phaser.Input.Keyboard.KeyCodes.C
+      );
+    } else {
+      // Remote players don't have input controls
+      this.cursor = null;
+      this.spaceBar = null;
+      this.zKey = null;
+      this.xKey = null;
+      this.cKey = null;
+    }
+
     this.right = true;
     this.body.setGravityY(0); // Remove gravity for top-down movement
     this.body.setSize(48, 60);
@@ -43,31 +73,34 @@ class Player extends Phaser.GameObjects.Sprite {
     Inits the animations for the player: init, idle, walk, jump, death, etc... and it adds a listener for the `animationcomplete` event.
     */
   init() {
+    // Define animation frames based on player sprite
+    const animConfig = this.getAnimationConfig();
+
     this.scene.anims.create({
       key: "startidle",
-      frames: this.scene.anims.generateFrameNumbers("walt", {
-        start: 0,
-        end: 1,
+      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
+        start: animConfig.idle.start,
+        end: animConfig.idle.end,
       }),
-      frameRate: 3,
+      frameRate: 10,
       repeat: -1,
     });
 
     this.scene.anims.create({
       key: "playeridle",
-      frames: this.scene.anims.generateFrameNumbers("walt", {
-        start: 2,
-        end: 3,
+      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
+        start: animConfig.idle.start,
+        end: animConfig.idle.end,
       }),
-      frameRate: 3,
+      frameRate: 10,
       repeat: -1,
     });
 
     this.scene.anims.create({
       key: "playerwalk",
-      frames: this.scene.anims.generateFrameNumbers("walt", {
-        start: 4,
-        end: 6,
+      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
+        start: animConfig.walk.start,
+        end: animConfig.walk.end,
       }),
       frameRate: 10,
       repeat: -1,
@@ -75,27 +108,27 @@ class Player extends Phaser.GameObjects.Sprite {
 
     this.scene.anims.create({
       key: "playerjump",
-      frames: this.scene.anims.generateFrameNumbers("walt", {
-        start: 4,
-        end: 4,
+      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
+        start: animConfig.jump.start,
+        end: animConfig.jump.end,
       }),
       frameRate: 1,
     });
 
     this.scene.anims.create({
       key: "playerhammer",
-      frames: this.scene.anims.generateFrameNumbers("walt", {
-        start: 7,
-        end: 8,
+      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
+        start: animConfig.hammer.start,
+        end: animConfig.hammer.end,
       }),
       frameRate: 10,
     });
 
     this.scene.anims.create({
       key: "playerbuild",
-      frames: this.scene.anims.generateFrameNumbers("walt", {
-        start: 9,
-        end: 10,
+      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
+        start: animConfig.build.start,
+        end: animConfig.build.end,
       }),
       frameRate: 10,
       repeat: 2,
@@ -103,9 +136,9 @@ class Player extends Phaser.GameObjects.Sprite {
 
     this.scene.anims.create({
       key: "playerdead",
-      frames: this.scene.anims.generateFrameNumbers("walt", {
-        start: 11,
-        end: 16,
+      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
+        start: animConfig.death.start,
+        end: animConfig.death.end,
       }),
       frameRate: 5,
     });
@@ -116,11 +149,70 @@ class Player extends Phaser.GameObjects.Sprite {
   }
 
   /*
+    Returns animation frame configuration for different player sprites
+    */
+  getAnimationConfig() {
+    switch (this.playerSprite) {
+      case "vanoSprite":
+        return {
+          idle: { start: 0, end: 0 },
+          walk: { start: 0, end: 1 },
+          jump: { start: 0, end: 0 },
+          hammer: { start: 0, end: 1 },
+          build: { start: 0, end: 1 },
+          death: { start: 0, end: 0 }
+        };
+      case "walt":
+        return {
+          idle: { start: 0, end: 0 },
+          walk: { start: 1, end: 3 },
+          jump: { start: 4, end: 4 },
+          hammer: { start: 7, end: 8 },
+          build: { start: 9, end: 10 },
+          death: { start: 11, end: 16 }
+        };
+      case "zombie":
+        return {
+          idle: { start: 0, end: 0 },
+          walk: { start: 0, end: 2 },
+          jump: { start: 0, end: 0 },
+          hammer: { start: 3, end: 4 },
+          build: { start: 3, end: 4 },
+          death: { start: 5, end: 5 }
+        };
+      case "penguin":
+        return {
+          idle: { start: 0, end: 1 },
+          walk: { start: 2, end: 5 },
+          jump: { start: 6, end: 6 },
+          hammer: { start: 2, end: 3 },
+          build: { start: 4, end: 5 },
+          death: { start: 6, end: 6 }
+        };
+      default:
+        return {
+          idle: { start: 0, end: 0 },
+          walk: { start: 0, end: 1 },
+          jump: { start: 0, end: 0 },
+          hammer: { start: 0, end: 1 },
+          build: { start: 0, end: 1 },
+          death: { start: 0, end: 0 }
+        };
+    }
+  }
+
+  /*
     Top-down 2D movement system for MMORPG-style gameplay.
     Arrow keys control movement in all four directions.
+    Only processes input for local players.
     */
   update() {
     if (this.dead) return;
+
+    // Only handle input for local players
+    if (!this.isLocal || !this.cursor) {
+      return;
+    }
 
     let velocityX = 0;
     let velocityY = 0;
@@ -130,13 +222,13 @@ class Player extends Phaser.GameObjects.Sprite {
     if (this.cursor.left.isDown) {
       velocityX = -this.walkVelocity;
       this.right = false;
-      this.flipX = true;
+      this.flipX = false;
       isMoving = true;
     }
     if (this.cursor.right.isDown) {
       velocityX = this.walkVelocity;
       this.right = true;
-      this.flipX = false;
+      this.flipX = true;
       isMoving = true;
     }
     if (this.cursor.up.isDown) {
@@ -166,22 +258,22 @@ class Player extends Phaser.GameObjects.Sprite {
       this.anims.play("playeridle", true);
     }
 
-    // Action keys
-    if (Phaser.Input.Keyboard.JustDown(this.spaceBar)) {
+    // Action keys (only for local players)
+    if (this.spaceBar && Phaser.Input.Keyboard.JustDown(this.spaceBar)) {
       // Space can be used for special action or dash
       console.log("Space pressed - reserved for special action");
     }
-    
-    if (Phaser.Input.Keyboard.JustDown(this.zKey)) {
+
+    if (this.zKey && Phaser.Input.Keyboard.JustDown(this.zKey)) {
       this.hammerBlow(); // Z key for hammer blow
     }
-    
-    if (Phaser.Input.Keyboard.JustDown(this.xKey)) {
+
+    if (this.xKey && Phaser.Input.Keyboard.JustDown(this.xKey)) {
       this.buildBlock(); // X key for building blocks
     }
-    
+
     // C key reserved for future action
-    if (Phaser.Input.Keyboard.JustDown(this.cKey)) {
+    if (this.cKey && Phaser.Input.Keyboard.JustDown(this.cKey)) {
       // Reserved for future action you'll provide
       console.log("C key pressed - action reserved for future implementation");
     }
