@@ -112,6 +112,7 @@ export default class Game extends Phaser.Scene {
     }
     this.addScore();
     this.loadAudios();
+    this.createMuteButton();
     this.playMusic();
   }
 
@@ -135,6 +136,69 @@ export default class Game extends Phaser.Scene {
       frameRate: 8,
     });
     this.scoreCoinsLogo.play({ key: "coinscore", repeat: -1 });
+  }
+
+  /*
+    Creates the mute/unmute button in the top-right corner
+    */
+  createMuteButton() {
+    // Initialize global mute state if not set
+    if (this.registry.get("audioMuted") === undefined) {
+      this.registry.set("audioMuted", false);
+    }
+
+    const isMuted = this.registry.get("audioMuted");
+    const buttonTexture = isMuted ? "muteButton" : "unmuteButton";
+
+    // Position button in top-right corner
+    this.muteButton = this.add
+      .sprite(this.width - 50, 30, buttonTexture)
+      .setScrollFactor(0)
+      .setInteractive({ useHandCursor: true })
+      .setScale(1.5);
+
+    // Add click handler
+    this.muteButton.on('pointerdown', () => {
+      this.toggleMute();
+    });
+
+    // Add hover effects
+    this.muteButton.on('pointerover', () => {
+      this.muteButton.setScale(1.7);
+    });
+
+    this.muteButton.on('pointerout', () => {
+      this.muteButton.setScale(1.5);
+    });
+  }
+
+  /*
+    Toggles the mute state and updates all audio
+    */
+  toggleMute() {
+    const currentMuted = this.registry.get("audioMuted");
+    const newMuted = !currentMuted;
+    
+    // Update global state
+    this.registry.set("audioMuted", newMuted);
+    
+    // Update button texture
+    this.muteButton.setTexture(newMuted ? "muteButton" : "unmuteButton");
+    
+    // Apply mute state to Phaser's sound manager
+    this.sound.mute = newMuted;
+    
+    // Update theme music if it exists
+    if (this.theme) {
+      this.theme.setMute(newMuted);
+    }
+    
+    // Play a brief feedback sound when unmuting (but not when muting)
+    if (!newMuted && this.audios && this.audios.coin) {
+      this.time.delayedCall(100, () => {
+        this.audios.coin.play({ volume: 0.3 });
+      });
+    }
   }
 
   /*
@@ -665,13 +729,19 @@ export default class Game extends Phaser.Scene {
       return;
     }
 
+    const defaultAnimation = this.localPlayer.animationKeys
+      ? this.localPlayer.animationKeys.idle
+      : 'playeridle';
+
     const playerData = {
       x: this.localPlayer.x,
       y: this.localPlayer.y,
       velocityX: this.localPlayer.body.velocity.x,
       velocityY: this.localPlayer.body.velocity.y,
       flipX: this.localPlayer.flipX,
-      animation: this.localPlayer.anims.currentAnim ? this.localPlayer.anims.currentAnim.key : 'playeridle',
+      animation: this.localPlayer.anims.currentAnim
+        ? this.localPlayer.anims.currentAnim.key
+        : defaultAnimation,
       playerSprite: this.localPlayer.playerSprite, // Include the character sprite
       timestamp: Date.now()
     };
@@ -762,8 +832,9 @@ export default class Game extends Phaser.Scene {
 
     // Update flip and animation
     remotePlayer.flipX = playerData.flipX;
-    if (remotePlayer.anims && playerData.animation) {
-      remotePlayer.anims.play(playerData.animation, true);
+    const animationKey = playerData.animation || remotePlayer.animationKeys?.idle;
+    if (remotePlayer.anims && animationKey) {
+      remotePlayer.anims.play(animationKey, true);
     }
   }
 
@@ -952,26 +1023,33 @@ export default class Game extends Phaser.Scene {
   }
 
   playAudio(key) {
-    this.audios[key].play();
+    const isMuted = this.registry.get("audioMuted") || false;
+    if (!isMuted) {
+      this.audios[key].play();
+    }
   }
 
   /*
       This plays the audio with a random volume and rate to add more variety to some sounds that otherwise would sound too repetitive.
       */
   playAudioRandomly(key) {
-    const volume = Phaser.Math.Between(0.8, 1);
-    const rate = Phaser.Math.Between(0.8, 1);
-    this.audios[key].play({ volume, rate });
+    const isMuted = this.registry.get("audioMuted") || false;
+    if (!isMuted) {
+      const volume = Phaser.Math.Between(0.8, 1);
+      const rate = Phaser.Math.Between(0.8, 1);
+      this.audios[key].play({ volume, rate });
+    }
   }
 
   /*
       This plays the music of the game. It is called from the create function, and so we can use `this.theme` to play the music.
       */
   playMusic(theme = "game") {
+    const isMuted = this.registry.get("audioMuted") || false;
     this.theme = this.sound.add("music" + this.number);
     this.theme.stop();
     this.theme.play({
-      mute: false,
+      mute: isMuted,
       volume: 0.7,
       rate: 1,
       detune: 0,

@@ -96,6 +96,7 @@ export default class Splash extends Phaser.Scene {
 
     this.playMusic();
     this.showTitle();
+    this.createMuteButton();
     this.time.delayedCall(1000, () => this.showInstructions(), null, this);
     this.time.delayedCall(2000, () => this.showGameModeSelection(), null, this);
     this.playAudioRandomly("writing-with-pencil");
@@ -704,16 +705,20 @@ export default class Splash extends Phaser.Scene {
     Helper function to play audio randomly to add variety.
     */
   playAudioRandomly(key) {
-    const volume = Phaser.Math.Between(0.8, 1);
-    const rate = 1;
-    this.sound.add(key).play({ volume, rate });
+    const isMuted = this.registry.get("audioMuted") || false;
+    if (!isMuted) {
+      const volume = Phaser.Math.Between(0.8, 1);
+      const rate = 1;
+      this.sound.add(key).play({ volume, rate });
+    }
   }
 
   playMusic(theme = "startSound") {
+    const isMuted = this.registry.get("audioMuted") || false;
     this.theme = this.sound.add(theme);
     if (this.theme && this.theme.isPlaying) this.theme.stop();
     this.theme.play({
-      mute: false,
+      mute: isMuted,
       volume: 1,
       rate: 1,
       detune: 0,
@@ -721,6 +726,61 @@ export default class Splash extends Phaser.Scene {
       loop: true,
       delay: 0,
     });
+  }
+
+  /*
+    Creates the mute/unmute button in the top-right corner
+    */
+  createMuteButton() {
+    // Initialize global mute state if not set
+    if (this.registry.get("audioMuted") === undefined) {
+      this.registry.set("audioMuted", false);
+    }
+
+    const isMuted = this.registry.get("audioMuted");
+    const buttonTexture = isMuted ? "muteButton" : "unmuteButton";
+
+    // Position button in top-right corner
+    this.muteButton = this.add
+      .sprite(this.width - 50, 30, buttonTexture)
+      .setInteractive({ useHandCursor: true })
+      .setScale(1.5);
+
+    // Add click handler
+    this.muteButton.on('pointerdown', () => {
+      this.toggleMute();
+    });
+
+    // Add hover effects
+    this.muteButton.on('pointerover', () => {
+      this.muteButton.setScale(1.7);
+    });
+
+    this.muteButton.on('pointerout', () => {
+      this.muteButton.setScale(1.5);
+    });
+  }
+
+  /*
+    Toggles the mute state and updates all audio
+    */
+  toggleMute() {
+    const currentMuted = this.registry.get("audioMuted");
+    const newMuted = !currentMuted;
+    
+    // Update global state
+    this.registry.set("audioMuted", newMuted);
+    
+    // Update button texture
+    this.muteButton.setTexture(newMuted ? "muteButton" : "unmuteButton");
+    
+    // Apply mute state to Phaser's sound manager
+    this.sound.mute = newMuted;
+    
+    // Update theme music if it exists
+    if (this.theme) {
+      this.theme.setMute(newMuted);
+    }
   }
 
   /*

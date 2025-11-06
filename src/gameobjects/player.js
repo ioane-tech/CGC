@@ -17,6 +17,7 @@ class Player extends Phaser.GameObjects.Sprite {
     super(scene, x, y, selectedPlayer);
     this.setOrigin(0.5);
     this.playerSprite = selectedPlayer;
+    this.animationKeys = this.buildAnimationKeyMap();
     this.isLocal = isLocal; // Whether this player is controlled by local input
 
     console.log(
@@ -73,89 +74,66 @@ class Player extends Phaser.GameObjects.Sprite {
   }
 
   /*
+    Create a map of animation keys scoped to the current sprite so multiple
+    characters can coexist without clobbering each other's animations.
+    */
+  buildAnimationKeyMap() {
+    const prefix = this.playerSprite;
+    return {
+      startidle: `${prefix}_startidle`,
+      idle: `${prefix}_idle`,
+      walk: `${prefix}_walk`,
+      jump: `${prefix}_jump`,
+      hammer: `${prefix}_hammer`,
+      build: `${prefix}_build`,
+      dead: `${prefix}_dead`,
+      attack: `${prefix}_attack`,
+    };
+  }
+
+  ensureAnimation(key, frameRange, frameRate, repeat = 0) {
+    if (this.scene.anims.exists(key)) {
+      return;
+    }
+
+    this.scene.anims.create({
+      key,
+      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
+        start: frameRange.start,
+        end: frameRange.end,
+      }),
+      frameRate,
+      repeat,
+    });
+  }
+
+  createAnimations(animConfig) {
+    this.ensureAnimation(
+      this.animationKeys.startidle,
+      animConfig.idle,
+      0.5,
+      -1
+    );
+
+    this.ensureAnimation(this.animationKeys.idle, animConfig.idle, 0.5, -1);
+    this.ensureAnimation(this.animationKeys.walk, animConfig.walk, 10, -1);
+    this.ensureAnimation(this.animationKeys.jump, animConfig.jump, 1);
+    this.ensureAnimation(this.animationKeys.hammer, animConfig.hammer, 10);
+    this.ensureAnimation(this.animationKeys.build, animConfig.build, 10, 2);
+    this.ensureAnimation(this.animationKeys.dead, animConfig.death, 5);
+    this.ensureAnimation(this.animationKeys.attack, animConfig.attack, 5);
+  }
+
+  /*
     Inits the animations for the player: init, idle, walk, jump, death, etc... and it adds a listener for the `animationcomplete` event.
     */
   init() {
     // Define animation frames based on player sprite
     const animConfig = this.getAnimationConfig();
 
-    this.scene.anims.create({
-      key: "startidle",
-      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
-        start: animConfig.idle.start,
-        end: animConfig.idle.end,
-      }),
-      frameRate: 0.5,
-      repeat: -1,
-    });
+    this.createAnimations(animConfig);
 
-    this.scene.anims.create({
-      key: "playeridle",
-      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
-        start: animConfig.idle.start,
-        end: animConfig.idle.end,
-      }),
-      frameRate: 0.5,
-      repeat: -1,
-    });
-
-    this.scene.anims.create({
-      key: "playerwalk",
-      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
-        start: animConfig.walk.start,
-        end: animConfig.walk.end,
-      }),
-      frameRate: 10,
-      repeat: -1,
-    });
-
-    this.scene.anims.create({
-      key: "playerjump",
-      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
-        start: animConfig.jump.start,
-        end: animConfig.jump.end,
-      }),
-      frameRate: 1,
-    });
-
-    this.scene.anims.create({
-      key: "playerhammer",
-      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
-        start: animConfig.hammer.start,
-        end: animConfig.hammer.end,
-      }),
-      frameRate: 10,
-    });
-
-    this.scene.anims.create({
-      key: "playerbuild",
-      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
-        start: animConfig.build.start,
-        end: animConfig.build.end,
-      }),
-      frameRate: 10,
-      repeat: 2,
-    });
-
-    this.scene.anims.create({
-      key: "playerdead",
-      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
-        start: animConfig.death.start,
-        end: animConfig.death.end,
-      }),
-      frameRate: 5,
-    });
-
-    this.scene.anims.create({
-      key: "attack",
-      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
-        start: animConfig.attack.start,
-        end: animConfig.attack.end,
-      }),
-      frameRate: 5,
-    });
-
-    this.anims.play("startidle", true);
+    this.anims.play(this.animationKeys.startidle, true);
 
     this.on("animationcomplete", this.animationComplete, this);
   }
@@ -270,9 +248,9 @@ class Player extends Phaser.GameObjects.Sprite {
 
     // Handle animations
     if (isMoving && !this.building && !this.attacking) {
-      this.anims.play("playerwalk", true);
+      this.anims.play(this.animationKeys.walk, true);
     } else if (!this.building && !this.attacking) {
-      this.anims.play("playeridle", true);
+      this.anims.play(this.animationKeys.idle, true);
     }
 
     // Action keys (only for local players)
@@ -318,7 +296,7 @@ class Player extends Phaser.GameObjects.Sprite {
     */
   buildBlock() {
     this.building = true;
-    this.anims.play("playerbuild", true);
+    this.anims.play(this.animationKeys.build, true);
     this.scene.playAudio("build");
     const offsetX = this.right ? 64 : -64;
     const offsetY = this.jumpVelocity === -400 ? 0 : -128;
@@ -345,7 +323,7 @@ class Player extends Phaser.GameObjects.Sprite {
     */
   hammerBlow() {
     this.building = true;
-    this.anims.play("playerhammer", true);
+    this.anims.play(this.animationKeys.hammer, true);
     const offsetX = this.right ? 32 : -32;
     const size = this.mjolnir ? 128 : 32;
     this.scene.blows.add(
@@ -355,7 +333,7 @@ class Player extends Phaser.GameObjects.Sprite {
 
   attack() {
     this.attacking = true;
-    this.anims.play("attack", true);
+    this.anims.play(this.animationKeys.attack, true);
   }
 
   /*
@@ -369,18 +347,22 @@ class Player extends Phaser.GameObjects.Sprite {
     This is called when the player finishes an animation. It checks if the animation is the `playerground`, `playerhammer` or `playerbuild` and it plays the idle animation.
     */
   animationComplete(animation, frame) {
-    if (animation.key === "playerground") {
-      this.anims.play("playeridle", true);
+    const groundKey = `${this.playerSprite}_ground`;
+    if (animation.key === "playerground" || animation.key === groundKey) {
+      this.anims.play(this.animationKeys.idle, true);
     }
 
     if (
-      animation.key === "playerhammer" ||
-      animation.key === "playerbuild" ||
-      animation.key === "attack"
+      animation.key === this.animationKeys.hammer ||
+      animation.key === this.animationKeys.build ||
+      animation.key === this.animationKeys.attack
     ) {
       this.attacking = false;
       this.building = false;
-      this.anims.play(this.jumping ? "playerjump" : "playeridle", true);
+      this.anims.play(
+        this.jumping ? this.animationKeys.jump : this.animationKeys.idle,
+        true
+      );
     }
   }
 
@@ -389,7 +371,7 @@ class Player extends Phaser.GameObjects.Sprite {
     */
   hit() {
     this.health--;
-    this.anims.play("playerdead", true);
+    this.anims.play(this.animationKeys.dead, true);
     this.body.enable = false;
     if (this.health === 0) {
       this.die();
@@ -401,7 +383,7 @@ class Player extends Phaser.GameObjects.Sprite {
     */
   die() {
     this.dead = true;
-    this.anims.play("playerdead", true);
+    this.anims.play(this.animationKeys.dead, true);
     this.body.immovable = true;
     this.body.moves = false;
     this.scene.restartScene();

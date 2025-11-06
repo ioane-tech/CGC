@@ -57,6 +57,9 @@ export default class Bootloader extends Phaser.Scene {
 
     this.load.audio("splash", "assets/sounds/splash.mp3");
 
+    // Create simple mute/unmute button images programmatically
+    this.createMuteButtonImages();
+
     Array(2)
       .fill(0)
       .forEach((_, i) => {
@@ -165,5 +168,97 @@ export default class Bootloader extends Phaser.Scene {
       20
     );
     this.progressBar = this.add.graphics();
+  }
+
+  createMuteButtonImages() {
+    this.createButtonTexture('muteButton', true);
+    this.createButtonTexture('unmuteButton', false);
+  }
+
+  createButtonTexture(textureName, isMuted) {
+    const graphics = this.add.graphics();
+    const size = 48;
+    const center = size / 2;
+    
+    // Modern gradient background with soft shadow
+    this.drawModernBackground(graphics, center);
+    
+    // Sleek speaker icon
+    this.drawModernSpeaker(graphics, center, isMuted);
+    
+    // Status indicator
+    if (isMuted) {
+      this.drawSlashIndicator(graphics, center);
+    } else {
+      this.drawModernSoundWaves(graphics, center);
+    }
+    
+    graphics.generateTexture(textureName, size, size);
+    graphics.destroy();
+  }
+
+  drawModernBackground(graphics, center) {
+    // Outer glow/shadow
+    graphics.fillStyle(0x000000, 0.3);
+    graphics.fillCircle(center, center + 1, 20);
+    
+    // Main background with gradient effect (layered circles)
+    graphics.fillStyle(0x2a2a2a, 1);
+    graphics.fillCircle(center, center, 20);
+    
+    graphics.fillStyle(0x383838, 1);
+    graphics.fillCircle(center - 2, center - 2, 18);
+    
+    // Subtle border
+    graphics.lineStyle(1.5, 0x4a4a4a, 1);
+    graphics.strokeCircle(center, center, 20);
+  }
+
+  drawModernSpeaker(graphics, center, isMuted) {
+    const color = isMuted ? 0xaaaaaa : 0xffffff;
+    graphics.fillStyle(color, 1);
+    
+    // Rounded speaker body
+    graphics.fillRoundedRect(center - 10, center - 5, 5, 10, 1);
+    
+    // Speaker cone with smoother shape
+    graphics.beginPath();
+    graphics.moveTo(center - 5, center - 6);
+    graphics.lineTo(center - 5, center + 6);
+    graphics.lineTo(center + 3, center + 3);
+    graphics.lineTo(center + 3, center - 3);
+    graphics.closePath();
+    graphics.fillPath();
+  }
+
+  drawSlashIndicator(graphics, center) {
+    // Red diagonal line with glow effect
+    graphics.lineStyle(3, 0xff3333, 0.3);
+    graphics.beginPath();
+    graphics.moveTo(center - 8, center - 8);
+    graphics.lineTo(center + 8, center + 8);
+    graphics.strokePath();
+    
+    graphics.lineStyle(2, 0xff4444, 1);
+    graphics.beginPath();
+    graphics.moveTo(center - 8, center - 8);
+    graphics.lineTo(center + 8, center + 8);
+    graphics.strokePath();
+  }
+
+  drawModernSoundWaves(graphics, center) {
+    // Animated-looking sound waves with gradient opacity
+    const waves = [
+      { radius: 10, opacity: 1, width: 2.5 },
+      { radius: 13, opacity: 0.7, width: 2 },
+      { radius: 16, opacity: 0.4, width: 1.5 }
+    ];
+    
+    waves.forEach(wave => {
+      graphics.lineStyle(wave.width, 0x44ff88, wave.opacity);
+      graphics.beginPath();
+      graphics.arc(center, center, wave.radius, -Math.PI / 4, Math.PI / 4);
+      graphics.strokePath();
+    });
   }
 }
