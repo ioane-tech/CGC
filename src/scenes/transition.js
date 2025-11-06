@@ -26,7 +26,7 @@ export default class Transition extends Phaser.Scene {
     this.add.sprite(
       this.center_width + 10,
       this.center_height - 200,
-      "vanoSprite"
+      "demchenkoSprite"
     );
     this.add
       .bitmapText(

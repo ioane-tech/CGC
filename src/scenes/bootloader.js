@@ -85,6 +85,18 @@ export default class Bootloader extends Phaser.Scene {
       frameWidth: 64,
       frameHeight: 127,
     });
+    this.load.spritesheet("IoSprite", "assets/images/IoSprite.png", {
+      frameWidth: 64,
+      frameHeight: 145,
+    });
+    this.load.spritesheet(
+      "demchenkoSprite",
+      "assets/images/demchenkoSprite.png",
+      {
+        frameWidth: 69,
+        frameHeight: 147,
+      }
+    );
 
     Array(5)
       .fill(0)
@@ -94,7 +106,7 @@ export default class Bootloader extends Phaser.Scene {
     this.load.image("softbricks", "assets/maps/softbricks.png");
     this.load.image("bricks", "assets/maps/bricks.png");
     this.load.image("background", "assets/maps/background.png");
-    
+
     this.load.image("chain", "assets/images/chain.png");
     this.load.spritesheet("bat", "assets/images/bat.png", {
       frameWidth: 32,

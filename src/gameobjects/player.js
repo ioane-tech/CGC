@@ -8,18 +8,20 @@ class Player extends Phaser.GameObjects.Sprite {
     let selectedPlayer;
     if (isLocal) {
       // Local player: use registry
-      selectedPlayer = scene.registry.get("selectedPlayer") || "vanoSprite";
+      selectedPlayer = scene.registry.get("selectedPlayer") || "IoSprite";
     } else {
       // Remote player: use provided sprite or fallback
-      selectedPlayer = remoteSprite || "vanoSprite";
+      selectedPlayer = remoteSprite || "IoSprite";
     }
-    
+
     super(scene, x, y, selectedPlayer);
     this.setOrigin(0.5);
     this.playerSprite = selectedPlayer;
     this.isLocal = isLocal; // Whether this player is controlled by local input
-    
-    console.log(`Player created: isLocal=${isLocal}, sprite=${selectedPlayer}, remoteSprite=${remoteSprite}`);
+
+    console.log(
+      `Player created: isLocal=${isLocal}, sprite=${selectedPlayer}, remoteSprite=${remoteSprite}`
+    );
 
     this.scene.add.existing(this);
     this.scene.physics.add.existing(this);
@@ -57,6 +59,7 @@ class Player extends Phaser.GameObjects.Sprite {
     this.init();
     this.jumping = false;
     this.building = false;
+    this.attacking = false;
     this.falling = false;
     this.mjolnir = false;
     this.walkVelocity = 200;
@@ -82,7 +85,7 @@ class Player extends Phaser.GameObjects.Sprite {
         start: animConfig.idle.start,
         end: animConfig.idle.end,
       }),
-      frameRate: 10,
+      frameRate: 0.5,
       repeat: -1,
     });
 
@@ -92,7 +95,7 @@ class Player extends Phaser.GameObjects.Sprite {
         start: animConfig.idle.start,
         end: animConfig.idle.end,
       }),
-      frameRate: 10,
+      frameRate: 0.5,
       repeat: -1,
     });
 
@@ -143,6 +146,15 @@ class Player extends Phaser.GameObjects.Sprite {
       frameRate: 5,
     });
 
+    this.scene.anims.create({
+      key: "attack",
+      frames: this.scene.anims.generateFrameNumbers(this.playerSprite, {
+        start: animConfig.attack.start,
+        end: animConfig.attack.end,
+      }),
+      frameRate: 5,
+    });
+
     this.anims.play("startidle", true);
 
     this.on("animationcomplete", this.animationComplete, this);
@@ -160,16 +172,18 @@ class Player extends Phaser.GameObjects.Sprite {
           jump: { start: 0, end: 0 },
           hammer: { start: 0, end: 1 },
           build: { start: 0, end: 1 },
-          death: { start: 0, end: 0 }
+          death: { start: 0, end: 0 },
+          attack: { start: 0, end: 0 },
         };
-      case "walt":
+      case "demchenkoSprite":
         return {
-          idle: { start: 0, end: 0 },
-          walk: { start: 1, end: 3 },
+          idle: { start: 0, end: 1 },
+          walk: { start: 2, end: 5 },
           jump: { start: 4, end: 4 },
           hammer: { start: 7, end: 8 },
           build: { start: 9, end: 10 },
-          death: { start: 11, end: 16 }
+          death: { start: 11, end: 16 },
+          attack: { start: 6, end: 7 },
         };
       case "zombie":
         return {
@@ -178,16 +192,18 @@ class Player extends Phaser.GameObjects.Sprite {
           jump: { start: 0, end: 0 },
           hammer: { start: 3, end: 4 },
           build: { start: 3, end: 4 },
-          death: { start: 5, end: 5 }
+          death: { start: 5, end: 5 },
+          attack: { start: 0, end: 0 },
         };
-      case "penguin":
+      case "IoSprite":
         return {
-          idle: { start: 0, end: 1 },
-          walk: { start: 2, end: 5 },
+          idle: { start: 8, end: 9 },
+          walk: { start: 0, end: 3 },
           jump: { start: 6, end: 6 },
           hammer: { start: 2, end: 3 },
           build: { start: 4, end: 5 },
-          death: { start: 6, end: 6 }
+          death: { start: 6, end: 6 },
+          attack: { start: 4, end: 7 },
         };
       default:
         return {
@@ -196,7 +212,8 @@ class Player extends Phaser.GameObjects.Sprite {
           jump: { start: 0, end: 0 },
           hammer: { start: 0, end: 1 },
           build: { start: 0, end: 1 },
-          death: { start: 0, end: 0 }
+          death: { start: 0, end: 0 },
+          attack: { start: 0, end: 0 },
         };
     }
   }
@@ -217,7 +234,7 @@ class Player extends Phaser.GameObjects.Sprite {
     let velocityX = 0;
     let velocityY = 0;
     let isMoving = false;
-
+    if (this.attacking) return;
     // Four-directional movement
     if (this.cursor.left.isDown) {
       velocityX = -this.walkVelocity;
@@ -252,9 +269,9 @@ class Player extends Phaser.GameObjects.Sprite {
     this.body.setVelocityY(velocityY);
 
     // Handle animations
-    if (isMoving && !this.building) {
+    if (isMoving && !this.building && !this.attacking) {
       this.anims.play("playerwalk", true);
-    } else if (!this.building) {
+    } else if (!this.building && !this.attacking) {
       this.anims.play("playeridle", true);
     }
 
@@ -265,7 +282,7 @@ class Player extends Phaser.GameObjects.Sprite {
     }
 
     if (this.zKey && Phaser.Input.Keyboard.JustDown(this.zKey)) {
-      this.hammerBlow(); // Z key for hammer blow
+      this.attack(); // Z key for hammer blow
     }
 
     if (this.xKey && Phaser.Input.Keyboard.JustDown(this.xKey)) {
@@ -336,6 +353,11 @@ class Player extends Phaser.GameObjects.Sprite {
     );
   }
 
+  attack() {
+    this.attacking = true;
+    this.anims.play("attack", true);
+  }
+
   /*
     This just turns the player in the opposite direction.
     */
@@ -351,7 +373,12 @@ class Player extends Phaser.GameObjects.Sprite {
       this.anims.play("playeridle", true);
     }
 
-    if (animation.key === "playerhammer" || animation.key === "playerbuild") {
+    if (
+      animation.key === "playerhammer" ||
+      animation.key === "playerbuild" ||
+      animation.key === "attack"
+    ) {
+      this.attacking = false;
       this.building = false;
       this.anims.play(this.jumping ? "playerjump" : "playeridle", true);
     }

@@ -13,30 +13,64 @@ export default class Splash extends Phaser.Scene {
     this.center_height = this.height / 2;
 
     this.cameras.main.setBackgroundColor(0x000053);
-    
+
     // Menu state management
     this.currentMenu = "main"; // "main", "gameMode", "playerSelect"
     this.selectedMenuIndex = 0;
-    
+
     // Initialize join state properly
     this.joiningRoom = false;
     this.selectedRoomToJoin = null;
-    
+
     // Game mode options
     this.gameModeOptions = [
       { key: "singleplayer", name: "SINGLE PLAYER", description: "Play alone" },
-      { key: "host", name: "HOST GAME", description: "Create multiplayer room" },
-      { key: "join", name: "JOIN GAME", description: "Join existing room" }
+      {
+        key: "host",
+        name: "HOST GAME",
+        description: "Create multiplayer room",
+      },
+      { key: "join", name: "JOIN GAME", description: "Join existing room" },
     ];
-    
+
     // Player selection state
     this.selectedPlayerIndex = 0;
     this.players = [
-      { key: "vanoSprite", name: "VANO", unlocked: true, frames: { width: 64, height: 127 }, unlockCondition: "default" },
-      { key: "walt", name: "Demchex", unlocked: true, frames: { width: 64, height: 64 }, unlockCondition: "Complete 3 levels" },
-      { key: "zombie", name: "Machex", unlocked: false, frames: { width: 64, height: 64 }, unlockCondition: "Collect 50 coins" },
-      { key: "penguin", name: "IO", unlocked: false, frames: { width: 64, height: 64 }, unlockCondition: "Find secret area" },
-      { key: "penguin", name: "Willen", unlocked: false, frames: { width: 64, height: 64 }, unlockCondition: "Find secret area" }
+      {
+        key: "vanoSprite",
+        name: "VANO",
+        unlocked: true,
+        frames: { width: 64, height: 127 },
+        unlockCondition: "default",
+      },
+      {
+        key: "demchenkoSprite",
+        name: "Demchex",
+        unlocked: true,
+        frames: { width: 64, height: 64 },
+        unlockCondition: "Complete 3 levels",
+      },
+      {
+        key: "IoSprite",
+        name: "IO",
+        unlocked: true,
+        frames: { width: 64, height: 124 },
+        unlockCondition: "Find secret area",
+      },
+      {
+        key: "zombie",
+        name: "Machex",
+        unlocked: false,
+        frames: { width: 64, height: 64 },
+        unlockCondition: "Collect 50 coins",
+      },
+      {
+        key: "penguin",
+        name: "Willen",
+        unlocked: false,
+        frames: { width: 64, height: 64 },
+        unlockCondition: "Find secret area",
+      },
     ];
 
     // Check for unlocked players from registry
@@ -48,10 +82,18 @@ export default class Splash extends Phaser.Scene {
 
     // Input handling
     this.cursors = this.input.keyboard.createCursorKeys();
-    this.input.keyboard.on("keydown-SPACE", () => this.handleMenuAction(), this);
-    this.input.keyboard.on("keydown-ENTER", () => this.handleMenuAction(), this);
+    this.input.keyboard.on(
+      "keydown-SPACE",
+      () => this.handleMenuAction(),
+      this
+    );
+    this.input.keyboard.on(
+      "keydown-ENTER",
+      () => this.handleMenuAction(),
+      this
+    );
     this.input.keyboard.on("keydown-ESC", () => this.goBackMenu(), this);
-    
+
     this.playMusic();
     this.showTitle();
     this.time.delayedCall(1000, () => this.showInstructions(), null, this);
@@ -81,17 +123,19 @@ export default class Splash extends Phaser.Scene {
           this.changeRoomSelection(1);
         }
       }
-      
+
       // R key to refresh room list
-      if (Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey('R'))) {
+      if (Phaser.Input.Keyboard.JustDown(this.input.keyboard.addKey("R"))) {
         this.refreshRoomList();
       }
     }
   }
 
   changePlayer(direction) {
-    const newIndex = (this.selectedPlayerIndex + direction + this.players.length) % this.players.length;
-    
+    const newIndex =
+      (this.selectedPlayerIndex + direction + this.players.length) %
+      this.players.length;
+
     if (this.players[newIndex].unlocked) {
       this.selectedPlayerIndex = newIndex;
       this.updatePlayerSelection();
@@ -107,43 +151,50 @@ export default class Splash extends Phaser.Scene {
     Handle menu actions based on current menu state
     */
   handleMenuAction() {
-    console.log('=== HANDLE MENU ACTION ===');
-    console.log('Current menu:', this.currentMenu);
-    console.log('Joining room:', this.joiningRoom);
-    console.log('Selected room to join:', this.selectedRoomToJoin);
-    
+    console.log("=== HANDLE MENU ACTION ===");
+    console.log("Current menu:", this.currentMenu);
+    console.log("Joining room:", this.joiningRoom);
+    console.log("Selected room to join:", this.selectedRoomToJoin);
+
     if (this.currentMenu === "gameMode") {
       const selectedOption = this.gameModeOptions[this.selectedMenuIndex];
       this.selectGameMode(selectedOption.key);
     } else if (this.currentMenu === "playerSelect") {
-      console.log('Player select menu action - calling startGame()');
+      console.log("Player select menu action - calling startGame()");
       this.startGame();
-    } else if (this.currentMenu === "join" && this.availableRooms && this.availableRooms.length > 0) {
+    } else if (
+      this.currentMenu === "join" &&
+      this.availableRooms &&
+      this.availableRooms.length > 0
+    ) {
       // Join the selected room
       this.joinSelectedRoom();
     } else if (this.currentMenu === "lobby" && this.isHost) {
       // Host can start the game, but check if there are enough players
       const roomInfo = this.networkManager.getRoomInfo();
-      console.log('=== HOST TRYING TO START GAME ===');
-      console.log('Is host:', this.isHost);
-      console.log('Room info:', roomInfo);
-      console.log('Player count:', roomInfo ? roomInfo.players.length : 'no room info');
-      
+      console.log("=== HOST TRYING TO START GAME ===");
+      console.log("Is host:", this.isHost);
+      console.log("Room info:", roomInfo);
+      console.log(
+        "Player count:",
+        roomInfo ? roomInfo.players.length : "no room info"
+      );
+
       if (!roomInfo || roomInfo.players.length < 2) {
         const playerCount = roomInfo ? roomInfo.players.length : 0;
         console.log(`Not enough players: ${playerCount}/2`);
         this.showError("Wait for at least one other player to join!");
         return;
       }
-      
+
       console.log(`Starting game with ${roomInfo.players.length} players`);
       this.networkManager.startGame();
     } else if (this.currentMenu === "lobby") {
-      console.log('=== NON-HOST IN LOBBY ===');
-      console.log('Is host:', this.isHost);
-      console.log('Current menu:', this.currentMenu);
+      console.log("=== NON-HOST IN LOBBY ===");
+      console.log("Is host:", this.isHost);
+      console.log("Current menu:", this.currentMenu);
     } else {
-      console.log('No action for current menu state');
+      console.log("No action for current menu state");
     }
   }
 
@@ -161,14 +212,14 @@ export default class Splash extends Phaser.Scene {
       this.playAudioRandomly("stone_fail");
     } else if (this.currentMenu === "connecting") {
       // Cancel connection attempt and go back
-      console.log('Cancelling connection attempt...');
-      
+      console.log("Cancelling connection attempt...");
+
       // Clear any pending timeouts
       if (this.joinTimeout) {
         clearTimeout(this.joinTimeout);
         this.joinTimeout = null;
       }
-      
+
       this.hideConnecting();
       this.showGameModeSelection();
       this.playAudioRandomly("stone_fail");
@@ -189,13 +240,13 @@ export default class Splash extends Phaser.Scene {
     Set up network event listeners
     */
   setupNetworkEvents() {
-    this.events.on('roomCreated', (data) => {
-      console.log('Room created:', data);
+    this.events.on("roomCreated", (data) => {
+      console.log("Room created:", data);
       this.showLobby(data, true);
     });
 
-    this.events.on('roomJoined', (data) => {
-      console.log('Room joined:', data);
+    this.events.on("roomJoined", (data) => {
+      console.log("Room joined:", data);
       // Clear join timeout if it exists
       if (this.joinTimeout) {
         clearTimeout(this.joinTimeout);
@@ -204,45 +255,45 @@ export default class Splash extends Phaser.Scene {
       // Clear join state since we successfully joined
       this.joiningRoom = false;
       this.selectedRoomToJoin = null;
-      
+
       this.hideConnecting();
       this.showLobby(data, false);
     });
 
-    this.events.on('playerJoined', (data) => {
-      console.log('Player joined lobby:', data);
-      console.log('Current menu:', this.currentMenu);
+    this.events.on("playerJoined", (data) => {
+      console.log("Player joined lobby:", data);
+      console.log("Current menu:", this.currentMenu);
       if (this.currentMenu === "lobby") {
-        console.log('Updating lobby with new player...');
+        console.log("Updating lobby with new player...");
         this.updateLobby();
         // Show notification that someone joined
         this.showPlayerJoinedNotification(data.playerData.name);
       }
     });
 
-    this.events.on('playerLeft', (data) => {
-      console.log('Player left lobby:', data);
-      console.log('Current menu:', this.currentMenu);
+    this.events.on("playerLeft", (data) => {
+      console.log("Player left lobby:", data);
+      console.log("Current menu:", this.currentMenu);
       if (this.currentMenu === "lobby") {
-        console.log('Updating lobby after player left...');
+        console.log("Updating lobby after player left...");
         this.updateLobby();
         // Show notification that someone left
         this.showPlayerLeftNotification(data.playerId);
       }
     });
 
-    this.events.on('gameStarted', (data) => {
-      console.log('Game starting:', data);
+    this.events.on("gameStarted", (data) => {
+      console.log("Game starting:", data);
       this.startMultiplayerGame();
     });
 
-    this.events.on('networkError', (error) => {
-      console.error('Network error:', error);
-      this.showError('Network error: ' + error.message);
+    this.events.on("networkError", (error) => {
+      console.error("Network error:", error);
+      this.showError("Network error: " + error.message);
     });
 
-    this.events.on('roomError', (error) => {
-      console.error('Room error:', error);
+    this.events.on("roomError", (error) => {
+      console.error("Room error:", error);
       // Clear join timeout if it exists
       if (this.joinTimeout) {
         clearTimeout(this.joinTimeout);
@@ -251,18 +302,18 @@ export default class Splash extends Phaser.Scene {
       // Clear join state on error
       this.joiningRoom = false;
       this.selectedRoomToJoin = null;
-      
+
       this.hideConnecting();
-      this.showError('Room error: ' + error.error);
+      this.showError("Room error: " + error.error);
       // Go back to room selection after error
       setTimeout(() => {
         this.tryConnectAndShowRooms();
       }, 3000);
     });
 
-    this.events.on('networkDisconnected', () => {
-      console.log('Disconnected from server');
-      this.showError('Disconnected from server');
+    this.events.on("networkDisconnected", () => {
+      console.log("Disconnected from server");
+      this.showError("Disconnected from server");
       this.goBackMenu();
     });
   }
@@ -273,7 +324,7 @@ export default class Splash extends Phaser.Scene {
   selectGameMode(mode) {
     this.selectedGameMode = mode;
     this.registry.set("gameMode", mode);
-    
+
     if (mode === "singleplayer") {
       this.hideGameModeSelection();
       this.showPlayerSelection();
@@ -296,7 +347,9 @@ export default class Splash extends Phaser.Scene {
     Change menu selection for game mode menu
     */
   changeMenuSelection(direction) {
-    this.selectedMenuIndex = (this.selectedMenuIndex + direction + this.gameModeOptions.length) % this.gameModeOptions.length;
+    this.selectedMenuIndex =
+      (this.selectedMenuIndex + direction + this.gameModeOptions.length) %
+      this.gameModeOptions.length;
     this.updateGameModeSelection();
     this.playAudioRandomly("writing-with-pencil");
   }
@@ -306,8 +359,10 @@ export default class Splash extends Phaser.Scene {
     */
   changeRoomSelection(direction) {
     if (!this.availableRooms || this.availableRooms.length === 0) return;
-    
-    this.selectedRoomIndex = (this.selectedRoomIndex + direction + this.availableRooms.length) % this.availableRooms.length;
+
+    this.selectedRoomIndex =
+      (this.selectedRoomIndex + direction + this.availableRooms.length) %
+      this.availableRooms.length;
     this.updateRoomSelection();
     this.playAudioRandomly("writing-with-pencil");
   }
@@ -324,7 +379,7 @@ export default class Splash extends Phaser.Scene {
         // Highlight selected room
         frame.lineStyle(3, 0xffbf00);
         frame.strokeRoundedRect(-150, -15, 300, 30, 5);
-        
+
         // Glow effect
         frame.lineStyle(1, 0xffffff, 0.5);
         frame.strokeRoundedRect(-152, -17, 304, 34, 7);
@@ -351,49 +406,52 @@ export default class Splash extends Phaser.Scene {
     */
   joinSelectedRoom() {
     if (!this.availableRooms || this.availableRooms.length === 0) return;
-    
+
     const selectedRoom = this.availableRooms[this.selectedRoomIndex];
-    console.log('Joining room:', selectedRoom.id);
-    
+    console.log("Joining room:", selectedRoom.id);
+
     // Store the selected room for later
     this.selectedRoomToJoin = selectedRoom;
     this.joiningRoom = true; // Flag to indicate we're joining a room
-    
+
     // Go directly to player selection without showing connecting screen yet
     this.hideJoinGameMenu();
     this.showPlayerSelection();
-    
-    console.log('Room selected, showing player selection. Room to join:', selectedRoom.id);
-    console.log('Current menu after showPlayerSelection:', this.currentMenu);
-    console.log('Player selection shown:', this.playerSelectionShown);
-    console.log('Joining room flag:', this.joiningRoom);
+
+    console.log(
+      "Room selected, showing player selection. Room to join:",
+      selectedRoom.id
+    );
+    console.log("Current menu after showPlayerSelection:", this.currentMenu);
+    console.log("Player selection shown:", this.playerSelectionShown);
+    console.log("Joining room flag:", this.joiningRoom);
   }
 
   /*
     Refresh the room list
     */
   refreshRoomList() {
-    console.log('Refreshing room list...');
+    console.log("Refreshing room list...");
     this.hideJoinGameMenu();
     this.tryConnectAndShowRooms();
   }
 
   startGame() {
-    console.log('=== START GAME ===');
+    console.log("=== START GAME ===");
     const selectedPlayer = this.players[this.selectedPlayerIndex];
     const gameMode = this.selectedGameMode || "singleplayer";
-    
-    console.log('Selected player:', selectedPlayer);
-    console.log('Game mode:', gameMode);
-    console.log('Joining room flag:', this.joiningRoom);
-    console.log('Selected room to join:', this.selectedRoomToJoin);
-    
+
+    console.log("Selected player:", selectedPlayer);
+    console.log("Game mode:", gameMode);
+    console.log("Joining room flag:", this.joiningRoom);
+    console.log("Selected room to join:", this.selectedRoomToJoin);
+
     // Pass selected player and game mode to the game
     this.registry.set("selectedPlayer", selectedPlayer.key);
     this.registry.set("gameMode", gameMode);
-    
+
     if (gameMode === "singleplayer") {
-      console.log('Starting single player game');
+      console.log("Starting single player game");
       // Start single player game immediately
       if (this.theme) this.theme.stop();
       this.scene.start("transition", {
@@ -403,16 +461,23 @@ export default class Splash extends Phaser.Scene {
         time: 30,
       });
     } else if (gameMode === "host") {
-      console.log('Creating multiplayer room');
+      console.log("Creating multiplayer room");
       // Connect to server and create room
       this.connectAndCreateRoom(selectedPlayer);
     } else if (this.joiningRoom && this.selectedRoomToJoin) {
-      console.log('Joining selected room');
+      console.log("Joining selected room");
       // Join the selected room
       this.joinRoomWithPlayer(selectedPlayer);
     } else {
-      console.log('No matching game mode or join condition');
-      console.log('gameMode:', gameMode, 'joiningRoom:', this.joiningRoom, 'selectedRoomToJoin:', this.selectedRoomToJoin);
+      console.log("No matching game mode or join condition");
+      console.log(
+        "gameMode:",
+        gameMode,
+        "joiningRoom:",
+        this.joiningRoom,
+        "selectedRoomToJoin:",
+        this.selectedRoomToJoin
+      );
     }
   }
 
@@ -420,57 +485,57 @@ export default class Splash extends Phaser.Scene {
     Join a specific room with the selected player
     */
   joinRoomWithPlayer(selectedPlayer) {
-    console.log('=== JOIN ROOM DEBUG ===');
-    console.log('Selected room to join:', this.selectedRoomToJoin);
-    console.log('Selected player:', selectedPlayer);
-    console.log('Network manager connected:', this.networkManager.isConnected);
-    
+    console.log("=== JOIN ROOM DEBUG ===");
+    console.log("Selected room to join:", this.selectedRoomToJoin);
+    console.log("Selected player:", selectedPlayer);
+    console.log("Network manager connected:", this.networkManager.isConnected);
+
     // Show connecting screen
     this.hidePlayerSelection();
     this.showConnecting(`Joining room ${this.selectedRoomToJoin.id}...`);
-    
+
     // Check if we're connected
     if (!this.networkManager.isConnected) {
-      console.error('Not connected to server when trying to join room');
+      console.error("Not connected to server when trying to join room");
       this.hideConnecting();
-      this.showError('Connection lost. Please try again.');
+      this.showError("Connection lost. Please try again.");
       setTimeout(() => {
         this.tryConnectAndShowRooms();
       }, 2000);
       return;
     }
-    
+
     // Prepare player data
     const playerData = {
       name: selectedPlayer.name,
       sprite: selectedPlayer.key,
-      joinedAt: Date.now()
+      joinedAt: Date.now(),
     };
-    
-    console.log('Sending joinRoom request with data:', {
+
+    console.log("Sending joinRoom request with data:", {
       roomId: this.selectedRoomToJoin.id,
-      playerData: playerData
+      playerData: playerData,
     });
-    
+
     // Set a timeout in case the server doesn't respond
     this.joinTimeout = setTimeout(() => {
-      console.error('Join room timeout - no response from server');
+      console.error("Join room timeout - no response from server");
       this.hideConnecting();
-      this.showError('Room join timeout - room may no longer exist');
+      this.showError("Room join timeout - room may no longer exist");
       setTimeout(() => {
         this.tryConnectAndShowRooms();
       }, 3000);
     }, 8000); // 8 second timeout
-    
+
     // Send the join request (this should not freeze)
     try {
       this.networkManager.joinRoom(this.selectedRoomToJoin.id, playerData);
-      console.log('joinRoom request sent successfully');
+      console.log("joinRoom request sent successfully");
     } catch (error) {
-      console.error('Error sending joinRoom request:', error);
+      console.error("Error sending joinRoom request:", error);
       clearTimeout(this.joinTimeout);
       this.hideConnecting();
-      this.showError('Failed to send join request');
+      this.showError("Failed to send join request");
       setTimeout(() => {
         this.tryConnectAndShowRooms();
       }, 2000);
@@ -482,21 +547,20 @@ export default class Splash extends Phaser.Scene {
     */
   async connectAndCreateRoom(selectedPlayer) {
     this.showConnecting("Creating room...");
-    
+
     try {
       await this.networkManager.connect();
-      
+
       const playerData = {
         name: selectedPlayer.name,
         sprite: selectedPlayer.key,
-        joinedAt: Date.now()
+        joinedAt: Date.now(),
       };
-      
+
       this.networkManager.createRoom(playerData);
-      
     } catch (error) {
-      console.error('Failed to connect:', error);
-      this.showError('Failed to connect to server');
+      console.error("Failed to connect:", error);
+      this.showError("Failed to connect to server");
     }
   }
 
@@ -506,35 +570,38 @@ export default class Splash extends Phaser.Scene {
   tryConnectAndShowRooms() {
     this.currentMenu = "connecting";
     this.showConnecting("Connecting to server...");
-    
+
     // Set a maximum wait time to prevent infinite hanging
     const maxWaitTime = setTimeout(() => {
-      console.error('Connection taking too long, showing error');
+      console.error("Connection taking too long, showing error");
       this.hideConnecting();
-      this.showError('Server not responding');
+      this.showError("Server not responding");
       this.backToGameModeAfterError();
     }, 15000); // 15 second max wait
-    
-    this.networkManager.connect()
+
+    this.networkManager
+      .connect()
       .then(() => {
         clearTimeout(maxWaitTime);
-        console.log('Connected successfully, getting room list...');
+        console.log("Connected successfully, getting room list...");
         this.showConnecting("Getting room list...");
         return this.networkManager.getRoomList();
       })
       .then((rooms) => {
         clearTimeout(maxWaitTime);
-        console.log('Retrieved rooms:', rooms);
-        console.log('Number of available rooms:', rooms.length);
-        
+        console.log("Retrieved rooms:", rooms);
+        console.log("Number of available rooms:", rooms.length);
+
         this.hideConnecting();
         this.showJoinGameMenu(rooms || []);
       })
       .catch((error) => {
         clearTimeout(maxWaitTime);
-        console.error('Connection failed:', error);
+        console.error("Connection failed:", error);
         this.hideConnecting();
-        this.showError(`Connection failed: ${error.message || 'Unknown error'}`);
+        this.showError(
+          `Connection failed: ${error.message || "Unknown error"}`
+        );
         this.backToGameModeAfterError();
       });
   }
@@ -556,10 +623,10 @@ export default class Splash extends Phaser.Scene {
     */
   startMultiplayerGame() {
     if (this.theme) this.theme.stop();
-    
+
     // Pass network manager to the game scene
     this.registry.set("networkManager", this.networkManager);
-    
+
     this.scene.start("transition", {
       next: "game",
       name: "MULTIPLAYER",
@@ -665,7 +732,13 @@ export default class Splash extends Phaser.Scene {
       .setOrigin(0.5)
       .setTint(0xaaaaaa);
     this.add
-      .bitmapText(this.center_width, 445, "pixelFont", "SPACE/ENTER: Select", 18)
+      .bitmapText(
+        this.center_width,
+        445,
+        "pixelFont",
+        "SPACE/ENTER: Select",
+        18
+      )
       .setOrigin(0.5)
       .setTint(0xaaaaaa);
     this.add
@@ -680,7 +753,7 @@ export default class Splash extends Phaser.Scene {
   showGameModeSelection() {
     this.currentMenu = "gameMode";
     this.gameModeSelectionShown = true;
-    
+
     // Title for game mode selection
     this.gameModeTitle = this.add
       .bitmapText(this.center_width, 520, "pixelFont", "SELECT GAME MODE", 20)
@@ -690,19 +763,25 @@ export default class Splash extends Phaser.Scene {
     // Create game mode options
     this.gameModeTexts = [];
     this.gameModeDescriptions = [];
-    
+
     this.gameModeOptions.forEach((option, index) => {
       const y = 580 + index * 50;
-      
+
       // Main option text
       const optionText = this.add
         .bitmapText(this.center_width, y, "pixelFont", option.name, 24)
         .setOrigin(0.5);
       this.gameModeTexts.push(optionText);
-      
+
       // Description text
       const descText = this.add
-        .bitmapText(this.center_width, y + 20, "pixelFont", option.description, 14)
+        .bitmapText(
+          this.center_width,
+          y + 20,
+          "pixelFont",
+          option.description,
+          14
+        )
         .setOrigin(0.5)
         .setTint(0x888888);
       this.gameModeDescriptions.push(descText);
@@ -738,17 +817,17 @@ export default class Splash extends Phaser.Scene {
       this.gameModeTitle.destroy();
       this.gameModeTitle = null;
     }
-    
+
     if (this.gameModeTexts) {
-      this.gameModeTexts.forEach(text => text.destroy());
+      this.gameModeTexts.forEach((text) => text.destroy());
       this.gameModeTexts = null;
     }
-    
+
     if (this.gameModeDescriptions) {
-      this.gameModeDescriptions.forEach(desc => desc.destroy());
+      this.gameModeDescriptions.forEach((desc) => desc.destroy());
       this.gameModeDescriptions = null;
     }
-    
+
     this.gameModeSelectionShown = false;
   }
 
@@ -759,7 +838,7 @@ export default class Splash extends Phaser.Scene {
     this.currentMenu = "join";
     this.availableRooms = rooms;
     this.selectedRoomIndex = 0;
-    
+
     // Title
     this.joinTitle = this.add
       .bitmapText(this.center_width, 480, "pixelFont", "JOIN GAME", 20)
@@ -769,61 +848,91 @@ export default class Splash extends Phaser.Scene {
     if (rooms.length === 0) {
       // No rooms available
       this.joinText = this.add
-        .bitmapText(this.center_width, 540, "pixelFont", "No games available", 18)
+        .bitmapText(
+          this.center_width,
+          540,
+          "pixelFont",
+          "No games available",
+          18
+        )
         .setOrigin(0.5)
         .setTint(0x888888);
-        
+
       this.joinSubText = this.add
-        .bitmapText(this.center_width, 570, "pixelFont", "Ask someone to host a game!", 14)
+        .bitmapText(
+          this.center_width,
+          570,
+          "pixelFont",
+          "Ask someone to host a game!",
+          14
+        )
         .setOrigin(0.5)
         .setTint(0x666666);
     } else {
       // Show available rooms
       this.joinText = this.add
-        .bitmapText(this.center_width, 520, "pixelFont", "Select a room to join:", 16)
+        .bitmapText(
+          this.center_width,
+          520,
+          "pixelFont",
+          "Select a room to join:",
+          16
+        )
         .setOrigin(0.5)
         .setTint(0xffffff);
 
       this.roomListTexts = [];
       this.roomFrames = [];
-      
+
       rooms.forEach((room, index) => {
         const y = 570 + index * 40;
-        
+
         // Room frame/background
         const frame = this.add.graphics();
         frame.x = this.center_width;
         frame.y = y;
         this.roomFrames.push(frame);
-        
+
         // Room info text
         const roomText = `Room: ${room.id}`;
         const playersText = `Players: ${room.playerCount}/${room.maxPlayers}`;
-        
+
         const roomTextElement = this.add
           .bitmapText(this.center_width, y - 8, "pixelFont", roomText, 16)
           .setOrigin(0.5);
         this.roomListTexts.push(roomTextElement);
-        
+
         const playersTextElement = this.add
           .bitmapText(this.center_width, y + 8, "pixelFont", playersText, 12)
           .setOrigin(0.5)
           .setTint(0xaaaaaa);
         this.roomListTexts.push(playersTextElement);
       });
-      
+
       this.updateRoomSelection();
     }
 
     // Instructions
     if (rooms.length > 0) {
       this.joinInstructions = this.add
-        .bitmapText(this.center_width, 720, "pixelFont", "↑↓: Select Room | SPACE: Join | R: Refresh | ESC: Back", 12)
+        .bitmapText(
+          this.center_width,
+          720,
+          "pixelFont",
+          "↑↓: Select Room | SPACE: Join | R: Refresh | ESC: Back",
+          12
+        )
         .setOrigin(0.5)
         .setTint(0x666666);
     } else {
       this.joinInstructions = this.add
-        .bitmapText(this.center_width, 620, "pixelFont", "R: Refresh | ESC: Back", 14)
+        .bitmapText(
+          this.center_width,
+          620,
+          "pixelFont",
+          "R: Refresh | ESC: Back",
+          14
+        )
         .setOrigin(0.5)
         .setTint(0x666666);
     }
@@ -835,7 +944,7 @@ export default class Splash extends Phaser.Scene {
   showConnecting(message = "Connecting...") {
     this.hideAllMenus();
     this.currentMenu = "connecting";
-    
+
     this.connectingTitle = this.add
       .bitmapText(this.center_width, 520, "pixelFont", message, 20)
       .setOrigin(0.5)
@@ -852,7 +961,7 @@ export default class Splash extends Phaser.Scene {
       alpha: { from: 1, to: 0.3 },
       duration: 500,
       repeat: -1,
-      yoyo: true
+      yoyo: true,
     });
   }
 
@@ -864,10 +973,16 @@ export default class Splash extends Phaser.Scene {
     this.currentMenu = "lobby";
     this.isHost = isHost;
     this.roomData = roomData;
-    
+
     // Room title
     this.lobbyTitle = this.add
-      .bitmapText(this.center_width, 480, "pixelFont", `Room: ${roomData.roomId}`, 20)
+      .bitmapText(
+        this.center_width,
+        480,
+        "pixelFont",
+        `Room: ${roomData.roomId}`,
+        20
+      )
       .setOrigin(0.5)
       .setTint(0xffbf00);
 
@@ -881,7 +996,13 @@ export default class Splash extends Phaser.Scene {
     // Add warning for host to wait for players
     if (isHost) {
       this.hostWarning = this.add
-        .bitmapText(this.center_width, 530, "pixelFont", "Wait for other players to join!", 12)
+        .bitmapText(
+          this.center_width,
+          530,
+          "pixelFont",
+          "Wait for other players to join!",
+          12
+        )
         .setOrigin(0.5)
         .setTint(0xffaa00);
     }
@@ -898,7 +1019,13 @@ export default class Splash extends Phaser.Scene {
     // Instructions
     if (isHost) {
       this.lobbyInstructions = this.add
-        .bitmapText(this.center_width, 700, "pixelFont", "SPACE: Start Game | ESC: Leave", 14)
+        .bitmapText(
+          this.center_width,
+          700,
+          "pixelFont",
+          "SPACE: Start Game | ESC: Leave",
+          14
+        )
         .setOrigin(0.5)
         .setTint(0x666666);
     } else {
@@ -914,38 +1041,40 @@ export default class Splash extends Phaser.Scene {
     */
   updateLobby() {
     if (this.currentMenu !== "lobby") {
-      console.log('Not updating lobby - current menu is:', this.currentMenu);
+      console.log("Not updating lobby - current menu is:", this.currentMenu);
       return;
     }
 
-    console.log('Updating lobby player list...');
+    console.log("Updating lobby player list...");
 
     // Clear existing player list
     if (this.playersList) {
-      this.playersList.forEach(text => text.destroy());
+      this.playersList.forEach((text) => text.destroy());
     }
     this.playersList = [];
 
     // Get current room info
     const roomInfo = this.networkManager.getRoomInfo();
-    console.log('Room info for lobby update:', roomInfo);
-    
+    console.log("Room info for lobby update:", roomInfo);
+
     if (!roomInfo.players || roomInfo.players.length === 0) {
-      console.log('No players found in room info');
+      console.log("No players found in room info");
       return;
     }
 
     roomInfo.players.forEach((player, index) => {
       const y = 580 + index * 25;
-      const playerText = `${player.name} ${player.id === roomInfo.playerId ? '(You)' : ''}`;
-      
+      const playerText = `${player.name} ${
+        player.id === roomInfo.playerId ? "(You)" : ""
+      }`;
+
       console.log(`Adding player to lobby: ${playerText}`);
-      
+
       const text = this.add
         .bitmapText(this.center_width, y, "pixelFont", playerText, 14)
         .setOrigin(0.5)
         .setTint(player.id === roomInfo.playerId ? 0x00ff00 : 0xffffff);
-      
+
       this.playersList.push(text);
     });
 
@@ -953,7 +1082,9 @@ export default class Splash extends Phaser.Scene {
     if (this.hostWarning && this.isHost) {
       const playerCount = roomInfo.players.length;
       if (playerCount > 1) {
-        this.hostWarning.setText(`${playerCount} players ready! Press SPACE to start.`);
+        this.hostWarning.setText(
+          `${playerCount} players ready! Press SPACE to start.`
+        );
         this.hostWarning.setTint(0x00ff00);
       } else {
         this.hostWarning.setText("Wait for other players to join!");
@@ -971,7 +1102,13 @@ export default class Splash extends Phaser.Scene {
     }
 
     this.joinNotification = this.add
-      .bitmapText(this.center_width, 450, "pixelFont", `${playerName} joined!`, 16)
+      .bitmapText(
+        this.center_width,
+        450,
+        "pixelFont",
+        `${playerName} joined!`,
+        16
+      )
       .setOrigin(0.5)
       .setTint(0x00ff00);
 
@@ -1049,13 +1186,12 @@ export default class Splash extends Phaser.Scene {
   showPlayerSelection() {
     this.currentMenu = "playerSelect";
     this.playerSelectionShown = true;
-    
+
     // Title for player selection
     this.playerSelectionTitle = this.add
       .bitmapText(this.center_width, 520, "pixelFont", "SELECT PLAYER", 15)
       .setOrigin(0.5)
       .setTint(0xffbf00);
-
 
     // Create player selection containers
     this.playerSprites = [];
@@ -1064,7 +1200,7 @@ export default class Splash extends Phaser.Scene {
     this.lockIcons = [];
 
     const startX = this.center_width - (this.players.length - 1) * 80;
-    
+
     this.players.forEach((player, index) => {
       const x = startX + index * 160;
       const y = 650;
@@ -1080,7 +1216,7 @@ export default class Splash extends Phaser.Scene {
       if (player.unlocked) {
         sprite = this.add.sprite(x, y, player.key, 0);
         sprite.setScale(player.key === "vanoSprite" ? 0.6 : 1);
-        
+
         // Add walking animation for unlocked players
         this.tweens.add({
           targets: sprite,
@@ -1088,7 +1224,7 @@ export default class Splash extends Phaser.Scene {
           y: y - 5,
           repeat: -1,
           yoyo: true,
-          ease: 'Sine.easeInOut'
+          ease: "Sine.easeInOut",
         });
       } else {
         // Show silhouette for locked players
@@ -1114,7 +1250,7 @@ export default class Splash extends Phaser.Scene {
           .setTint(0xff4444);
         this.lockIcons.push(lockedText);
       }
-      
+
       this.playerSprites.push(sprite);
 
       // Player name
@@ -1137,27 +1273,27 @@ export default class Splash extends Phaser.Scene {
       this.playerSelectionTitle.destroy();
       this.playerSelectionTitle = null;
     }
-    
+
     if (this.playerSprites) {
-      this.playerSprites.forEach(sprite => sprite.destroy());
+      this.playerSprites.forEach((sprite) => sprite.destroy());
       this.playerSprites = null;
     }
-    
+
     if (this.playerNames) {
-      this.playerNames.forEach(name => name.destroy());
+      this.playerNames.forEach((name) => name.destroy());
       this.playerNames = null;
     }
-    
+
     if (this.playerFrames) {
-      this.playerFrames.forEach(frame => frame.destroy());
+      this.playerFrames.forEach((frame) => frame.destroy());
       this.playerFrames = null;
     }
-    
+
     if (this.lockIcons) {
-      this.lockIcons.forEach(icon => icon.destroy());
+      this.lockIcons.forEach((icon) => icon.destroy());
       this.lockIcons = null;
     }
-    
+
     this.playerSelectionShown = false;
   }
 
@@ -1169,36 +1305,36 @@ export default class Splash extends Phaser.Scene {
       this.joinTitle.destroy();
       this.joinTitle = null;
     }
-    
+
     if (this.joinText) {
       this.joinText.destroy();
       this.joinText = null;
     }
-    
+
     if (this.joinSubText) {
       this.joinSubText.destroy();
       this.joinSubText = null;
     }
-    
+
     if (this.roomListTexts) {
-      this.roomListTexts.forEach(text => text.destroy());
+      this.roomListTexts.forEach((text) => text.destroy());
       this.roomListTexts = null;
     }
-    
+
     if (this.roomFrames) {
-      this.roomFrames.forEach(frame => frame.destroy());
+      this.roomFrames.forEach((frame) => frame.destroy());
       this.roomFrames = null;
     }
-    
+
     if (this.joinInstructions) {
       this.joinInstructions.destroy();
       this.joinInstructions = null;
     }
-    
+
     // Clear room selection state (but preserve join state if we're joining)
     this.availableRooms = null;
     this.selectedRoomIndex = 0;
-    
+
     // Only clear join state if we're not in the middle of joining a room
     if (!this.joiningRoom) {
       this.selectedRoomToJoin = null;
@@ -1213,12 +1349,12 @@ export default class Splash extends Phaser.Scene {
       this.connectingTitle.destroy();
       this.connectingTitle = null;
     }
-    
+
     if (this.connectingDots) {
       this.connectingDots.destroy();
       this.connectingDots = null;
     }
-    
+
     // Clear any pending join timeout
     if (this.joinTimeout) {
       clearTimeout(this.joinTimeout);
@@ -1234,32 +1370,32 @@ export default class Splash extends Phaser.Scene {
       this.lobbyTitle.destroy();
       this.lobbyTitle = null;
     }
-    
+
     if (this.hostIndicator) {
       this.hostIndicator.destroy();
       this.hostIndicator = null;
     }
-    
+
     if (this.playersTitle) {
       this.playersTitle.destroy();
       this.playersTitle = null;
     }
-    
+
     if (this.playersList) {
-      this.playersList.forEach(text => text.destroy());
+      this.playersList.forEach((text) => text.destroy());
       this.playersList = null;
     }
-    
+
     if (this.lobbyInstructions) {
       this.lobbyInstructions.destroy();
       this.lobbyInstructions = null;
     }
-    
+
     if (this.hostWarning) {
       this.hostWarning.destroy();
       this.hostWarning = null;
     }
-    
+
     if (this.joinNotification) {
       this.joinNotification.destroy();
       this.joinNotification = null;
@@ -1278,7 +1414,7 @@ export default class Splash extends Phaser.Scene {
         // Highlight selected player with golden frame
         frame.lineStyle(4, 0xffbf00);
         frame.strokeRoundedRect(-50, -40, 100, 80, 10);
-        
+
         // Add glow effect
         frame.lineStyle(2, 0xffffff, 0.5);
         frame.strokeRoundedRect(-52, -42, 104, 84, 12);
@@ -1310,16 +1446,15 @@ export default class Splash extends Phaser.Scene {
     const secretFound = this.registry.get("secretFound") || false;
 
     // Unlock players based on conditions
-    if (levelsCompleted >= 3) {
-      this.players[1].unlocked = true; // Walt
-    }
-    if (coinsCollected >= 50) {
-      this.players[2].unlocked = true; // Zombie
-    }
-    if (secretFound) {
-      this.players[3].unlocked = true; // Penguin
-    }
-
+    // if (levelsCompleted >= 3) {
+    //   this.players[1].unlocked = true; // Walt
+    // }
+    // if (coinsCollected >= 50) {
+    //   this.players[2].unlocked = true; // Zombie
+    // }
+    // if (secretFound) {
+    //   this.players[3].unlocked = true; // Penguin
+    // }
   }
 
   /*
@@ -1333,7 +1468,13 @@ export default class Splash extends Phaser.Scene {
     }
 
     this.unlockText = this.add
-      .bitmapText(this.center_width, 650, "pixelFont", this.players[playerIndex].unlockCondition, 16)
+      .bitmapText(
+        this.center_width,
+        650,
+        "pixelFont",
+        this.players[playerIndex].unlockCondition,
+        16
+      )
       .setOrigin(0.5)
       .setTint(0xff8888);
 
