@@ -747,16 +747,16 @@ export default class Splash extends Phaser.Scene {
       .setScale(1.5);
 
     // Add click handler
-    this.muteButton.on('pointerdown', () => {
+    this.muteButton.on("pointerdown", () => {
       this.toggleMute();
     });
 
     // Add hover effects
-    this.muteButton.on('pointerover', () => {
+    this.muteButton.on("pointerover", () => {
       this.muteButton.setScale(1.7);
     });
 
-    this.muteButton.on('pointerout', () => {
+    this.muteButton.on("pointerout", () => {
       this.muteButton.setScale(1.5);
     });
   }
@@ -767,16 +767,16 @@ export default class Splash extends Phaser.Scene {
   toggleMute() {
     const currentMuted = this.registry.get("audioMuted");
     const newMuted = !currentMuted;
-    
+
     // Update global state
     this.registry.set("audioMuted", newMuted);
-    
+
     // Update button texture
     this.muteButton.setTexture(newMuted ? "muteButton" : "unmuteButton");
-    
+
     // Apply mute state to Phaser's sound manager
     this.sound.mute = newMuted;
-    
+
     // Update theme music if it exists
     if (this.theme) {
       this.theme.setMute(newMuted);
@@ -788,7 +788,13 @@ export default class Splash extends Phaser.Scene {
     */
   showInstructions() {
     this.add
-      .bitmapText(this.center_width, 420, "pixelFont", "↑↓: Navigate Menu", 18)
+      .bitmapText(
+        this.center_width,
+        420,
+        "pixelFont",
+        "Arrow Keys: Navigate Menu",
+        18
+      )
       .setOrigin(0.5)
       .setTint(0xaaaaaa);
     this.add
@@ -816,7 +822,7 @@ export default class Splash extends Phaser.Scene {
 
     // Title for game mode selection
     this.gameModeTitle = this.add
-      .bitmapText(this.center_width, 520, "pixelFont", "SELECT GAME MODE", 20)
+      .bitmapText(this.center_width, 520, "hammerfont", "SELECT GAME MODE", 44)
       .setOrigin(0.5)
       .setTint(0xffbf00);
 
@@ -825,11 +831,11 @@ export default class Splash extends Phaser.Scene {
     this.gameModeDescriptions = [];
 
     this.gameModeOptions.forEach((option, index) => {
-      const y = 580 + index * 50;
+      const y = 580 + index * 70;
 
       // Main option text
       const optionText = this.add
-        .bitmapText(this.center_width, y, "pixelFont", option.name, 24)
+        .bitmapText(this.center_width, y, "pixelFont", option.name, 20)
         .setOrigin(0.5);
       this.gameModeTexts.push(optionText);
 
@@ -837,7 +843,7 @@ export default class Splash extends Phaser.Scene {
       const descText = this.add
         .bitmapText(
           this.center_width,
-          y + 20,
+          y + 30,
           "pixelFont",
           option.description,
           14
@@ -858,12 +864,12 @@ export default class Splash extends Phaser.Scene {
 
     this.gameModeTexts.forEach((text, index) => {
       if (index === this.selectedMenuIndex) {
-        text.setTint(0xffbf00);
-        text.setScale(1.1);
+        text.setTint(0xffbf60);
+        text.setScale(1.2);
         this.gameModeDescriptions[index].setTint(0xffffff);
       } else {
         text.setTint(0xffffff);
-        text.setScale(1.0);
+        text.setScale(1.1);
         this.gameModeDescriptions[index].setTint(0x888888);
       }
     });
@@ -1038,10 +1044,10 @@ export default class Splash extends Phaser.Scene {
     this.lobbyTitle = this.add
       .bitmapText(
         this.center_width,
-        480,
+        510,
         "pixelFont",
         `Room: ${roomData.roomId}`,
-        20
+        25
       )
       .setOrigin(0.5)
       .setTint(0xffbf00);
@@ -1049,7 +1055,7 @@ export default class Splash extends Phaser.Scene {
     // Host indicator
     const hostText = isHost ? "You are the host" : "Waiting for host...";
     this.hostIndicator = this.add
-      .bitmapText(this.center_width, 510, "pixelFont", hostText, 14)
+      .bitmapText(this.center_width, 540, "pixelFont", hostText, 14)
       .setOrigin(0.5)
       .setTint(isHost ? 0x00ff00 : 0x888888);
 
@@ -1058,7 +1064,7 @@ export default class Splash extends Phaser.Scene {
       this.hostWarning = this.add
         .bitmapText(
           this.center_width,
-          530,
+          590,
           "pixelFont",
           "Wait for other players to join!",
           12
@@ -1069,7 +1075,7 @@ export default class Splash extends Phaser.Scene {
 
     // Players list
     this.playersTitle = this.add
-      .bitmapText(this.center_width, 550, "pixelFont", "Players:", 16)
+      .bitmapText(this.center_width, 615, "pixelFont", "Players:", 19)
       .setOrigin(0.5)
       .setTint(0xffffff);
 
@@ -1081,7 +1087,7 @@ export default class Splash extends Phaser.Scene {
       this.lobbyInstructions = this.add
         .bitmapText(
           this.center_width,
-          700,
+          730,
           "pixelFont",
           "SPACE: Start Game | ESC: Leave",
           14
@@ -1090,7 +1096,7 @@ export default class Splash extends Phaser.Scene {
         .setTint(0x666666);
     } else {
       this.lobbyInstructions = this.add
-        .bitmapText(this.center_width, 700, "pixelFont", "ESC: Leave Room", 14)
+        .bitmapText(this.center_width, 730, "pixelFont", "ESC: Leave Room", 14)
         .setOrigin(0.5)
         .setTint(0x666666);
     }
@@ -1123,7 +1129,7 @@ export default class Splash extends Phaser.Scene {
     }
 
     roomInfo.players.forEach((player, index) => {
-      const y = 580 + index * 25;
+      const y = 640 + index * 25;
       const playerText = `${player.name} ${
         player.id === roomInfo.playerId ? "(You)" : ""
       }`;
@@ -1249,7 +1255,7 @@ export default class Splash extends Phaser.Scene {
 
     // Title for player selection
     this.playerSelectionTitle = this.add
-      .bitmapText(this.center_width, 520, "pixelFont", "SELECT PLAYER", 15)
+      .bitmapText(this.center_width, 520, "pixelFont", "SELECT PLAYER", 16)
       .setOrigin(0.5)
       .setTint(0xffbf00);
 
@@ -1264,12 +1270,6 @@ export default class Splash extends Phaser.Scene {
     this.players.forEach((player, index) => {
       const x = startX + index * 160;
       const y = 650;
-
-      // Create background frame for each player
-      const frame = this.add.graphics();
-      frame.lineStyle(3, 0x444444);
-      frame.strokeRoundedRect(x - 50, y - 40, 100, 80, 10);
-      this.playerFrames.push(frame);
 
       // Create player sprite
       let sprite;

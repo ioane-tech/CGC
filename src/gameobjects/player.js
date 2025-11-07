@@ -60,6 +60,8 @@ class Player extends Phaser.GameObjects.Sprite {
     this.init();
     this.jumping = false;
     this.building = false;
+    this.isMoving = false;
+    this.isHealing = false;
     this.attacking = false;
     this.falling = false;
     this.mjolnir = false;
@@ -94,6 +96,7 @@ class Player extends Phaser.GameObjects.Sprite {
       build: `${prefix}_build`,
       dead: `${prefix}_dead`,
       attack: `${prefix}_attack`,
+      heal: `${prefix}_heal`,
     };
   }
 
@@ -128,6 +131,7 @@ class Player extends Phaser.GameObjects.Sprite {
     this.ensureAnimation(this.animationKeys.build, animConfig.build, 10, 2);
     this.ensureAnimation(this.animationKeys.dead, animConfig.death, 5);
     this.ensureAnimation(this.animationKeys.attack, animConfig.attack, 5);
+    this.ensureAnimation(this.animationKeys.heal, animConfig.heal, 3);
   }
 
   /*
@@ -158,6 +162,7 @@ class Player extends Phaser.GameObjects.Sprite {
           build: { start: 0, end: 1 },
           death: { start: 0, end: 0 },
           attack: { start: 0, end: 0 },
+          heal: { start: 0, end: 0 },
         };
       case "demchenkoSprite":
         return {
@@ -168,6 +173,7 @@ class Player extends Phaser.GameObjects.Sprite {
           build: { start: 9, end: 10 },
           death: { start: 11, end: 16 },
           attack: { start: 6, end: 7 },
+          heal: { start: 0, end: 0 },
         };
       case "zombie":
         return {
@@ -178,6 +184,7 @@ class Player extends Phaser.GameObjects.Sprite {
           build: { start: 3, end: 4 },
           death: { start: 5, end: 5 },
           attack: { start: 0, end: 0 },
+          heal: { start: 0, end: 0 },
         };
       case "IoSprite":
         return {
@@ -188,6 +195,7 @@ class Player extends Phaser.GameObjects.Sprite {
           build: { start: 4, end: 5 },
           death: { start: 6, end: 6 },
           attack: { start: 4, end: 7 },
+          heal: { start: 10, end: 12 },
         };
       default:
         return {
@@ -198,6 +206,7 @@ class Player extends Phaser.GameObjects.Sprite {
           build: { start: 0, end: 1 },
           death: { start: 0, end: 0 },
           attack: { start: 0, end: 0 },
+          heal: { start: 0, end: 0 },
         };
     }
   }
@@ -217,28 +226,28 @@ class Player extends Phaser.GameObjects.Sprite {
 
     let velocityX = 0;
     let velocityY = 0;
-    let isMoving = false;
-    if (this.attacking) return;
+    this.isMoving = false;
+    if (this.attacking || this.isHealing) return;
     // Four-directional movement
     if (this.cursor.left.isDown) {
       velocityX = -this.walkVelocity;
       this.right = false;
       this.flipX = false;
-      isMoving = true;
+      this.isMoving = true;
     }
     if (this.cursor.right.isDown) {
       velocityX = this.walkVelocity;
       this.right = true;
       this.flipX = true;
-      isMoving = true;
+      this.isMoving = true;
     }
     if (this.cursor.up.isDown) {
       velocityY = -this.walkVelocity;
-      isMoving = true;
+      this.isMoving = true;
     }
     if (this.cursor.down.isDown) {
       velocityY = this.walkVelocity;
-      isMoving = true;
+      this.isMoving = true;
     }
 
     // Normalize diagonal movement (so moving diagonally isn't faster)
@@ -253,9 +262,14 @@ class Player extends Phaser.GameObjects.Sprite {
     this.body.setVelocityY(velocityY);
 
     // Handle animations
-    if (isMoving && !this.building && !this.attacking) {
+    if (!this.building && !this.attacking && this.isMoving && !this.isHealing) {
       this.anims.play(this.animationKeys.walk, true);
-    } else if (!this.building && !this.attacking) {
+    } else if (
+      !this.building &&
+      !this.attacking &&
+      !this.isHealing &&
+      !this.isMoving
+    ) {
       this.anims.play(this.animationKeys.idle, true);
     }
 
@@ -266,7 +280,7 @@ class Player extends Phaser.GameObjects.Sprite {
     }
 
     if (this.zKey && Phaser.Input.Keyboard.JustDown(this.zKey)) {
-      this.attack(); // Z key for hammer blow
+      this.heal(); // Z key for hammer blow
     }
 
     if (this.xKey && Phaser.Input.Keyboard.JustDown(this.xKey)) {
@@ -336,13 +350,8 @@ class Player extends Phaser.GameObjects.Sprite {
     );
   }
 
-  attack() {
-    this.attacking = true;
-    this.anims.play(this.animationKeys.attack, true);
-  }
-
   kick() {
-    if (this.attacking || this.dead) return;
+    if (this.attacking || this.dead || this.isMoving) return;
     this.attacking = true;
     const facingRight = this.right;
     if (this.scene && typeof this.scene.spawnPlayerAttack === "function") {
@@ -357,7 +366,11 @@ class Player extends Phaser.GameObjects.Sprite {
       });
     }
 
-    if (this.scene && typeof this.scene.handleLocalPlayerAction === "function" && this.isLocal) {
+    if (
+      this.scene &&
+      typeof this.scene.handleLocalPlayerAction === "function" &&
+      this.isLocal
+    ) {
       this.scene.handleLocalPlayerAction("kick", {
         direction: facingRight ? "right" : "left",
         width: 54,
@@ -390,9 +403,11 @@ class Player extends Phaser.GameObjects.Sprite {
     if (
       animation.key === this.animationKeys.hammer ||
       animation.key === this.animationKeys.build ||
-      animation.key === this.animationKeys.attack
+      animation.key === this.animationKeys.attack ||
+      animation.key === this.animationKeys.heal
     ) {
       this.attacking = false;
+      this.isHealing = false;
       this.building = false;
       this.anims.play(
         this.jumping ? this.animationKeys.jump : this.animationKeys.idle,
@@ -486,16 +501,24 @@ class Player extends Phaser.GameObjects.Sprite {
   }
 
   takeDamage(amount = 1) {
-    if (this.invincible || this.dead || amount <= 0) return { applied: false, died: false };
+    if (this.invincible || this.dead || amount <= 0)
+      return { applied: false, died: false };
     const now = this.scene?.time?.now || 0;
-    if (now && this.lastDamageTime && now - this.lastDamageTime < this.damageCooldown) {
+    if (
+      now &&
+      this.lastDamageTime &&
+      now - this.lastDamageTime < this.damageCooldown
+    ) {
       return { applied: false, died: false };
     }
 
     this.lastDamageTime = now;
     this.health = Math.max(0, this.health - amount);
     this.updateHealthBar();
-    if (this.scene && typeof this.scene.handlePlayerHealthChanged === "function") {
+    if (
+      this.scene &&
+      typeof this.scene.handlePlayerHealthChanged === "function"
+    ) {
       this.scene.handlePlayerHealthChanged(this);
     }
     this.showDamageFeedback();
@@ -508,11 +531,17 @@ class Player extends Phaser.GameObjects.Sprite {
   }
 
   heal(amount = 1) {
-    if (amount <= 0) return;
+    if (amount <= 0 || this.isMoving || this.attacking || this.isHealing)
+      return;
     this.health = Phaser.Math.Clamp(this.health + amount, 0, this.maxHealth);
     this.updateHealthBar();
-    if (this.scene && typeof this.scene.handlePlayerHealthChanged === "function") {
+    if (
+      this.scene &&
+      typeof this.scene.handlePlayerHealthChanged === "function"
+    ) {
+      this.isHealing = true;
       this.scene.handlePlayerHealthChanged(this);
+      this.anims.play(this.animationKeys.heal, true);
     }
   }
 
@@ -552,7 +581,12 @@ class Player extends Phaser.GameObjects.Sprite {
     const maxHealth = this.maxHealth > 0 ? this.maxHealth : 1;
     const healthPercent = Phaser.Math.Clamp(this.health / maxHealth, 0, 1);
     const innerWidth = Math.max(0, (barWidth - 2) * healthPercent);
-    const color = healthPercent > 0.5 ? 0x3aff3a : healthPercent > 0.25 ? 0xffc107 : 0xff3a3a;
+    const color =
+      healthPercent > 0.5
+        ? 0x3aff3a
+        : healthPercent > 0.25
+        ? 0xffc107
+        : 0xff3a3a;
     this.healthBar.fillStyle(color, 0.9);
     this.healthBar.fillRect(x + 1, y + 1, innerWidth, barHeight - 2);
   }
